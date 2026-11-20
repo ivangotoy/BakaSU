@@ -334,6 +334,17 @@ check "installer: MODID is the validated id when another value contains id= firs
     '[ "$(modid "$(printf "updateJson=https://example.com/u.json?id=other\nid=good")" good)" = good ]'
 check "installer: MODID is the validated id for a spaced key (id = x)" '[ "$(modid "id = spaced" spaced)" = spaced ]'
 check "installer: MODID from module.prop without KSU_MODULE" '[ "$(modid "$(printf "name=x\nid=plain")")" = plain ]'
+gprop() { # gprop <file text> <key>: grep_prop cut from installer.sh
+    printf '%s\n' "$1" > "$W/inst/props"
+    ( eval "$(sed -n '/^grep_prop() {/,/^}/p' "$INST")"; grep_prop "$2" "$W/inst/props" )
+}
+check "installer grep_prop: key=value read exactly (first match, xargs trim)" \
+    '[ "$(gprop "$(printf "name=My Module \nname=second")" name)" = "My Module" ]'
+check "installer grep_prop: a longer key ending in the key does not match" \
+    '[ "$(gprop "$(printf "modname=wrong\nname=right")" name)" = right ]'
+check "installer grep_prop: key=... inside a value does not match" \
+    '[ "$(gprop "$(printf "description=see id=7\nid=real")" id)" = real ]'
+check "installer grep_prop: missing key gives empty" '[ -z "$(gprop "author=x" id)" ]'
 
 echo
 echo "forgejo tests: $npass passed, $nfail failed"

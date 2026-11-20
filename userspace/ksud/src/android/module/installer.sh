@@ -30,7 +30,7 @@ grep_cmdline() {
 }
 
 grep_prop() {
-  local REGEX="s/$1=//p"
+  local REGEX="s/^$1=//p"
   shift
   local FILES=$@
   [ -z "$FILES" ] && FILES='/system/build.prop'
