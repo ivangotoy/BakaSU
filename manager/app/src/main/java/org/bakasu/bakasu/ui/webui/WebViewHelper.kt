@@ -3,6 +3,7 @@ package org.bakasu.bakasu.ui.webui
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.ActivityManager
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
@@ -138,6 +139,21 @@ internal suspend fun prepareWebView(
                         }
                     }
                     return webViewAssetLoader.shouldInterceptRequest(url)
+                }
+
+                // The ksu interface belongs to the module's own pages: top-level navigation stays on
+                // the WebUI origin, any other page opens in the external browser.
+                override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                    val url = request.url
+                    val onWebUi = url.scheme.equals("https", ignoreCase = true) &&
+                        url.host.equals("mui.kernelsu.org", ignoreCase = true)
+                    if (!request.isForMainFrame || onWebUi) return false
+                    try {
+                        activity.startActivity(Intent(Intent.ACTION_VIEW, url))
+                    } catch (_: ActivityNotFoundException) {
+                        // no app can open it: the WebUI stays where it is
+                    }
+                    return true
                 }
 
                 override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
