@@ -138,10 +138,12 @@ pub fn root_shell() -> Result<()> {
                     || arg[0].starts_with("-G")
                     || arg[0].starts_with("-s")
                     || arg[0].starts_with("-Z")
+                    || arg[0].starts_with("-z")
                     || arg[0] == "--group"
                     || arg[0] == "--supp-group"
                     || arg[0] == "--shell"
-                    || arg[0] == "--context")
+                    || arg[0] == "--context"
+                    || arg[0] == "-cn")
         })
         .map_or(usize::MAX, |idx| idx + 1);
     let args = match first_non_option.cmp(&first_option_c) {
@@ -203,6 +205,8 @@ pub fn root_shell() -> Result<()> {
         "Prevent this process (and its children) from privilege re-escalation via KernelSU",
     );
     opts.optopt("Z", "context", "Specify the SELinux context", "CONTEXT");
+    // legacy -cn CONTEXT (rewritten to -z below): accepted and ignored, as in Magisk su
+    opts.optopt("z", "", "Legacy SELinux context option, ignored", "CONTEXT");
 
     // Replace -cn with -z, -mm with -M for supporting getopt_long
     let args = args
