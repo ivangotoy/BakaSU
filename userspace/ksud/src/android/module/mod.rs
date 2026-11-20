@@ -669,13 +669,36 @@ pub fn handle_updated_modules() -> Result<()> {
             let module_dir = modules_root.join(name);
             let mut disabled = false;
             let mut removed = false;
+            let mut stashed = None;
             if module_dir.exists() {
                 // If the old module is disabled, we need to also disable the new one
                 disabled = module_dir.join(defs::DISABLE_FILE_NAME).exists();
                 removed = module_dir.join(defs::REMOVE_FILE_NAME).exists();
-                remove_dir_all(&module_dir)?;
+                // Moved aside, not deleted in place: a removal failing half way would leave a
+                // broken module live and stop the remaining updates
+                match crate::android::hot_install::stash(&module_dir, &name.to_string_lossy()) {
+                    Ok(old) => stashed = Some(old),
+                    Err(e) => {
+                        warn!("Failed to update {}: {e:#}", module_dir.display());
+                        return Ok(());
+                    }
+                }
             }
-            rename(updated_module, &module_dir)?;
+            if let Err(e) = rename(updated_module, &module_dir) {
+                warn!("Failed to update {}: {e}", module_dir.display());
+                if let Some(old) = &stashed
+                    && let Err(e) = rename(old, &module_dir)
+                {
+                    warn!("Failed to restore {}: {e}", module_dir.display());
+                }
+                return Ok(());
+            }
+            // left in the trash (cleaned at the next boot) if it cannot be removed now
+            if let Some(old) = &stashed
+                && let Err(e) = remove_dir_all(old)
+            {
+                warn!("Failed to remove {}: {e}", old.display());
+            }
             if removed {
                 let path = module_dir.join(defs::REMOVE_FILE_NAME);
                 if let Err(e) = ensure_file_exists(&path) {

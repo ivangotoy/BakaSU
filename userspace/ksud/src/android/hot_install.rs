@@ -85,7 +85,7 @@ fn check(module_id: &str, is_metamodule: bool, request: &Request) -> Result<Opti
 
 /// Move the live module dir out of the way. Running processes and existing mounts may still
 /// reference it, so it is only deleted on the next boot.
-fn stash(live_dir: &Path, module_id: &str) -> Result<PathBuf> {
+pub(crate) fn stash(live_dir: &Path, module_id: &str) -> Result<PathBuf> {
     ensure_dir_exists(defs::HOT_INSTALL_TRASH_DIR)?;
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
