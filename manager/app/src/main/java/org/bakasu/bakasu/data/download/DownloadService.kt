@@ -23,6 +23,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -354,7 +355,7 @@ class DownloadService : Service() {
         }
     }
 
-    private fun downloadUrlToTarget(id: Int, url: String, target: File) {
+    private suspend fun downloadUrlToTarget(id: Int, url: String, target: File) {
         httpClient.newCall(Request.Builder().url(url).build()).execute().use { response ->
             if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
             val body = response.body ?: throw IOException("Empty body")
@@ -365,6 +366,8 @@ class DownloadService : Service() {
                     val buffer = ByteArray(8 * 1024)
                     var copied = 0L
                     while (true) {
+                        // a cancelled download stops here instead of completing
+                        currentCoroutineContext().ensureActive()
                         val read = source.read(buffer)
                         if (read == -1) break
                         output.write(buffer, 0, read)
