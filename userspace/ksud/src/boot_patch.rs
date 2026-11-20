@@ -133,7 +133,7 @@ mod android {
         parse_kmi_from_uname().or_else(|_| parse_kmi_from_modules())
     }
 
-    fn calculate_sha1(file_path: impl AsRef<Path>) -> Result<String> {
+    pub(super) fn calculate_sha1(file_path: impl AsRef<Path>) -> Result<String> {
         use sha1::Digest;
         use std::io::Read;
         let mut file = std::fs::File::open(file_path.as_ref())?;
@@ -1061,8 +1061,16 @@ pub fn restore(args: BootRestoreArgs) -> Result<()> {
         let backup_path =
             PathBuf::from(KSU_BACKUP_DIR).join(format!("{KSU_BACKUP_FILE_PREFIX}{sha}"));
         if backup_path.is_file() {
-            println!("- Using backup file {}", backup_path.display());
-            stock_boot = Some(backup_path);
+            // flash only a backup whose content still matches the sha1 in its name
+            if calculate_sha1(&backup_path).is_ok_and(|actual| backup_sha1_matches(sha, &actual)) {
+                println!("- Using backup file {}", backup_path.display());
+                stock_boot = Some(backup_path);
+            } else {
+                println!(
+                    "- Warning: backup {} does not match its sha1, not using it",
+                    backup_path.display()
+                );
+            }
         } else {
             println!("- Warning: no backup {} found!", backup_path.display());
         }
@@ -1129,6 +1137,17 @@ pub fn restore(args: BootRestoreArgs) -> Result<()> {
     Ok(())
 }
 
+/// `expected` is the sha1 named by the ramdisk (and in the backup file name): a 40-digit
+/// lowercase hex string equal to the backup's actual sha1
+#[cfg(any(target_os = "android", test))]
+fn backup_sha1_matches(expected: &str, actual: &str) -> bool {
+    expected.len() == 40
+        && expected
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        && expected == actual
+}
+
 /// GKI kernels are 5.10 and later (major, minor, patch)
 #[cfg(any(target_os = "android", test))]
 fn is_gki_version((major, minor, _patch): (i32, i32, i32)) -> bool {
@@ -1183,9 +1202,27 @@ mod tests {
     use android_bootimg::cpio::{Cpio, CpioEntry};
 
     use super::{
-        DEFAULT_BLOCK_MODULES, KSU_BLOCK_MODULES_CONFIG, block_modules_entry, is_gki_version,
-        remove_ksu_entries,
+        DEFAULT_BLOCK_MODULES, KSU_BLOCK_MODULES_CONFIG, backup_sha1_matches, block_modules_entry,
+        is_gki_version, remove_ksu_entries,
     };
+
+    fn sha1_hex(data: &[u8]) -> String {
+        use sha1::Digest;
+        base16ct::lower::encode_string(&sha1::Sha1::digest(data))
+    }
+
+    #[test]
+    fn stock_backup_must_match_the_sha1_in_its_name() {
+        let stock = sha1_hex(b"stock boot image");
+        assert!(backup_sha1_matches(&stock, &sha1_hex(b"stock boot image")));
+        // altered (truncated, overwritten) backup
+        assert!(!backup_sha1_matches(&stock, &sha1_hex(b"stock boot imag")));
+        // a name without a valid sha1
+        let upper = stock.to_uppercase();
+        for name in ["", "../../ksud", upper.as_str(), &stock[..39]] {
+            assert!(!backup_sha1_matches(name, name));
+        }
+    }
 
     #[test]
     fn gki_versions() {
