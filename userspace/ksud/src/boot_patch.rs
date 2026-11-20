@@ -314,15 +314,22 @@ mod android {
 
         let current_slot = Command::new(BOOTCTL_PATH)
             .arg("get-current-slot")
-            .output()?
-            .stdout;
-        let current_slot = String::from_utf8(current_slot)?;
+            .output()?;
+        ensure!(
+            current_slot.status.success(),
+            "bootctl get-current-slot failed"
+        );
+        let current_slot = String::from_utf8(current_slot.stdout)?;
         let current_slot = current_slot.trim();
         let target_slot = i32::from(current_slot == "0");
 
-        Command::new(BOOTCTL_PATH)
+        let status = Command::new(BOOTCTL_PATH)
             .args(["set-active-boot-slot", target_slot.to_string().as_str()])
             .status()?;
+        ensure!(
+            status.success(),
+            "bootctl set-active-boot-slot {target_slot} failed"
+        );
 
         let post_fs_data = Path::new(ADB_DIR).join("post-fs-data.d");
         utils::ensure_dir_exists(&post_fs_data)?;
@@ -336,9 +343,16 @@ rm -f /data/adb/post-fs-data.d/post_ota.sh
 "
         );
 
-        std::fs::write(&post_ota_sh, sh_content)?;
-        #[cfg(unix)]
-        std::fs::set_permissions(post_ota_sh, std::fs::Permissions::from_mode(0o755))?;
+        // complete and executable before it appears in post-fs-data.d (the temp file sits outside
+        // it, so a half-written copy is never run)
+        let tmp = Path::new(ADB_DIR).join(".post_ota.sh.tmp");
+        let written = std::fs::write(&tmp, sh_content)
+            .and_then(|()| std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o755)))
+            .and_then(|()| std::fs::rename(&tmp, &post_ota_sh));
+        if let Err(e) = written {
+            let _ = std::fs::remove_file(&tmp);
+            return Err(e.into());
+        }
 
         Ok(())
     }
