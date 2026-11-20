@@ -290,6 +290,8 @@ PREP='rm src/.ci-out/manager.apk && ln -s "$W/a735.apk" src/.ci-out/manager.apk'
 check "release: symlinked manager.apk refused" 'failed apk-link && said apk-link "manager.apk is not a regular file"'
 PREP='rm src/.ci-out/src && mkfifo src/.ci-out/src' rcase src-fifo "$B" "$U0" "$W/a735.apk" -
 check "release: non-regular src refused" 'failed src-fifo && said src-fifo "src is not a regular file"'
+PREP='mv src/.ci-out real-out && ln -s ../real-out src/.ci-out' rcase out-link "$B" "$U0" "$W/a735.apk" -
+check "release: symlinked .ci-out refused" 'failed out-link && said out-link ".ci-out is not a directory" && [ "$(nrel)" = 0 ]'
 rcase no-bundle "$M" "$U1" "$W/a735.apk" -
 check "release: merge without bundle refused" 'failed no-bundle && said no-bundle "merge.bundle is not a regular file"'
 rcase bundle-tip "$M" "$U1" "$W/a735.apk" "$W/swapped.bundle"

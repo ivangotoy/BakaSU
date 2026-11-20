@@ -178,6 +178,7 @@ git merge-base --is-ancestor "$BASE_SHA" HEAD || die "base $BASE_SHA not in main
 
 # build results are data owned by the build user: regular files only, checked before use
 regular() { [ -f "$1" ] && [ ! -L "$1" ] || die "$1 is not a regular file"; }
+[ -d "$OUT" ] && [ ! -L "$OUT" ] || die "$OUT is not a directory"
 regular "$OUT/src"; regular "$OUT/manager.apk"
 { read -r SRC_SHA; read -r UP_SHA; } < "$OUT/src"
 [[ "$SRC_SHA" =~ ^[0-9a-f]{40}$ ]] || die "bad source sha"
