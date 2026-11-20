@@ -421,7 +421,9 @@ pub fn init_forced_features() {
 pub fn init_features() -> Result<()> {
     log::info!("Initializing features from config...");
 
-    let mut features = load_binary_config()?;
+    let features = load_binary_config()?;
+    // ids managed by active modules are not applied, but keep their saved values
+    let mut to_apply = features.clone();
 
     // Get managed features from active modules and skip them during init
     if let Ok(managed_features_map) = module::get_managed_features() {
@@ -440,8 +442,8 @@ pub fn init_features() -> Result<()> {
                 for feature_name in feature_list {
                     if let Ok(feature_id) = parse_feature_id(feature_name) {
                         let feature_id_u32 = feature_id as u32;
-                        // Remove managed features from config, let modules control them
-                        if features.remove(&feature_id_u32).is_some() {
+                        // Skip managed features, let modules control them
+                        if to_apply.remove(&feature_id_u32).is_some() {
                             log::info!(
                                 "  - Skipping managed feature '{feature_name}' (controlled by module: {module_id})",
                             );
@@ -464,14 +466,14 @@ pub fn init_features() -> Result<()> {
         );
     }
 
-    if features.is_empty() {
+    if to_apply.is_empty() {
         log::info!("No features to apply, skipping initialization");
         return Ok(());
     }
 
-    apply_config(&features);
+    apply_config(&to_apply);
 
-    // Save the configuration (excluding managed features)
+    // Save the configuration (managed features keep their saved values)
     save_binary_config(&features)?;
     log::info!("Saved feature configuration to file");
 
