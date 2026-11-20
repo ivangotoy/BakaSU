@@ -379,7 +379,8 @@ where
         if trimmed_line.is_empty() {
             continue;
         }
-        if let Ok((_, statement)) = PolicyStatement::parse(trimmed_line) {
+        // a statement must use the whole piece: trailing text is a parse failure, not ignored
+        if let Ok(("", statement)) = PolicyStatement::parse(trimmed_line) {
             statements.push(statement);
         } else if strict {
             bail!("Failed to parse policy statement: {line}")
