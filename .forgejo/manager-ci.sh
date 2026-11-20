@@ -242,6 +242,8 @@ RELEASE_ID="$(api POST /releases -H 'Content-Type: application/json' -d "$REQ" |
 log "draft release $RELEASE_ID, uploading $APK_NAME"
 ASSET_ID="$(api POST "/releases/$RELEASE_ID/assets?name=$APK_NAME" -F "attachment=@$APK" | jget id)"
 ASSET_URL="$(api GET "/releases/$RELEASE_ID/assets/$ASSET_ID" | jget browser_download_url)"
+# the token header goes to this forge only
+case "$ASSET_URL" in "${SERVER_URL%/}"/*) ;; *) die "asset download URL is not on $SERVER_URL" ;; esac
 log "downloading back $ASSET_URL"
 curl -sSL --connect-timeout 30 --max-time 600 --fail-with-body -H "@$AUTH_H" -o "$REL/back.apk" "$ASSET_URL"
 [ "$(sha "$REL/back.apk")" = "$APK_SHA" ] || die "downloaded asset sha256 differs"

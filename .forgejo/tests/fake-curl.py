@@ -87,7 +87,7 @@ def fault(var):
 
 
 releases, tags = load("releases.json", {}), load("tags.json", {})
-if url.startswith(server + "/attachments/"):
+if url.startswith(server + "/") and "/api/v1/" not in url:  # attachment download: .../<asset id>
     path = url[len(server):]
     aid = url.rsplit("/", 1)[1]
     body = open(os.path.join(forge, "assets", aid), "rb").read()

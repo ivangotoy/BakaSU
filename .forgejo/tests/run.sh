@@ -313,6 +313,11 @@ rcase upload-fail "$B" "$U0" "$W/a735.apk" - FAKE_FAIL="POST /assets"
 check "release: failed upload deletes the draft" 'failed upload-fail && said upload-fail "deleting draft release" && [ "$(nrel)" = 0 ]'
 rcase tag-moved "$B" "$U0" "$W/a735.apk" - FAKE_TAG_SHA="$U0"
 check "release: published tag at another commit fails" 'failed tag-moved && said tag-moved "points at"'
+rcase foreign-asset "$B" "$U0" "$W/a735.apk" - FAKE_ASSET_URL=https://other.example.net/attachments/a7
+check "release: asset URL outside the forge refused, token header never sent there" \
+    'failed foreign-asset && ! grep -q "other.example.net" "$W/r/foreign-asset/argv" && [ "$(nrel)" = 0 ]'
+rcase repo-asset "$B" "$U0" "$W/a735.apk" - FAKE_ASSET_URL="$SERVER/owner/BakaSU/releases/download/v4.2.0-rc3-ci9/a7"
+check "release: asset URL in the repository download path of the forge accepted" 'ok repo-asset && said repo-asset "downloading back $SERVER/owner/"'
 for n in "$W"/r/*/; do n="$(basename "$n")"; check "release ($n): token never in argv or log" "notoken $n"; done
 
 echo
