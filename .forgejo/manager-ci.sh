@@ -106,8 +106,8 @@ if [ "$MODE" = build-user ]; then
     trap 'rm -f "$KEY"' EXIT
     (umask 077; printf '%s' "$SIGN_KEYSTORE_B64" | base64 -d > "$KEY")
     rm -rf dist
-    python3 repack_apk_multi.py repack -b release -t release -a "$ABI" \
-        -K "$KEY" -A "$SIGN_KEY_ALIAS" -P "$SIGN_STORE_PASSWORD" -S "$SIGN_KEY_PASSWORD" --strip >&2
+    # upstream repack_apk_multi.py, with apksigner reading the passwords from its environment
+    python3 -I .forgejo/repack-sign.py "$WORK" "$ABI" "$KEY" "$SIGN_KEY_ALIAS" >&2
     mapfile -t apks < <(find dist -maxdepth 1 -name '*.apk')
     [ "${#apks[@]}" = 1 ] || die "repack left ${#apks[@]} APKs in dist"
     "$(build_tool apksigner)" verify "${apks[0]}" || die "apksigner verify failed"
@@ -122,9 +122,9 @@ if [ "$MODE" = build ]; then
     mkdir -p "$WORK/.ci-home"
     chown -R "$BUILD_UID:$BUILD_UID" "$WORK"
     log "building $BASE_SHA as uid $BUILD_UID"
-    # The build user gets exactly the variables below (the signing secrets by environment; the
-    # upstream repack script later passes the passwords to apksigner as argv inside the build
-    # user's processes): un-export everything else, and let env(1) drop what bash cannot.
+    # The build user gets exactly the variables below (the signing secrets by environment, never
+    # argv: apksigner reads the passwords as env: references, .forgejo/repack-sign.py):
+    # un-export everything else, and let env(1) drop what bash cannot.
     (   keep=" PATH JAVA_HOME SIGN_KEYSTORE_B64 SIGN_KEY_ALIAS SIGN_STORE_PASSWORD SIGN_KEY_PASSWORD BASE_SHA GIT_HTTP_LOW_SPEED_LIMIT GIT_HTTP_LOW_SPEED_TIME "
         drop=()
         for v in $(compgen -e); do

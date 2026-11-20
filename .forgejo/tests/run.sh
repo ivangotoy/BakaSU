@@ -183,6 +183,7 @@ check "build-user: only the arm64-v8a APK is repacked" \
     '[ "$(find "$W/b2/manager/app/build/outputs/apk/release" -name "*.apk" | wc -l)" = 1 ]'
 check "build-user: signing key file removed" '[ ! -e "$HOME/fork-key.p12" ]'
 check "build-user: apksigner sign ran (stub checks the passwords)" 'grep -q "^apksigner sign" "$W/logs/argv"'
+check "build-user: signing passwords never in argv" '! grep -qF -e "$STORE_PW" -e "$KEY_PW" "$W/logs/argv"'
 
 echo "--- build-user mode (upstream already merged; failures)"
 git clone -q "$W/origin.git" "$W/b3"
@@ -195,6 +196,17 @@ check "build-user (merged): exits 0, src = BASE, no bundle" \
 buser "$W/b3" SIGN_KEY_PASSWORD="$(true)" > "$W/logs/b3-nosign" 2>&1
 b3n=$?
 check "build-user: missing signing setting refused by name" '[ "$b3n" != 0 ] && grep -q "SIGN_KEY_PASSWORD is not set" "$W/logs/b3-nosign"'
+buser "$W/b3" FIXTURE_STORE_PW=other > "$W/logs/b3-badpw" 2>&1
+b3p=$?
+check "build-user: signing failure fails the build, passwords not logged" \
+    '[ "$b3p" != 0 ] && grep -q "apksigner failed" "$W/logs/b3-badpw" && ! grep -qF -e "$STORE_PW" -e "$KEY_PW" "$W/logs/b3-badpw"'
+python3 -I -c 'import json,os,sys;json.dump({"signing":{"keystore_pass":os.environ["FIXTURE_STORE_PW"],"key_pass":os.environ["FIXTURE_KEY_PW"]}},open(sys.argv[1],"w"))' \
+    "$W/b3/repack-config.json"
+buser "$W/b3" > "$W/logs/b3-config" 2>&1
+b3c=$?
+rm -f "$W/b3/repack-config.json"
+check "build-user: signing refused when apksigner would not get env: password references" \
+    '[ "$b3c" != 0 ] && grep -q "did not get both passwords as env: references" "$W/logs/b3-config"'
 
 # release fixtures: a merge M of B and U1 (and broken variants) as bundles of B..main
 git clone -q "$W/origin.git" "$W/m"
