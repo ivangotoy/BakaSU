@@ -764,12 +764,8 @@ fn apply_rules_batch<'a>(statements: &'a [PolicyStatement<'a>], strict: bool) ->
                 log::warn!("{err}");
             }
         }
-        Err(e) => {
-            log::warn!("apply sepolicy batch failed: {e}");
-            if strict {
-                return Err(anyhow::anyhow!("apply sepolicy batch failed: {e}"));
-            }
-        }
+        // the kernel rejects a batch as a whole only when it applied none of it
+        Err(e) => return Err(anyhow::anyhow!("apply sepolicy batch failed: {e}")),
     }
 
     Ok(())
