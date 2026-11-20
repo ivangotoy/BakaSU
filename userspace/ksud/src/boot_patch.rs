@@ -915,7 +915,7 @@ pub fn patch(args: BootPatchArgs) -> Result<()> {
         let should_write_output = true;
 
         if should_write_output {
-            let output_dir = out.unwrap_or(std::env::current_dir()?);
+            let output_dir = out.map_or_else(std::env::current_dir, Ok)?;
             let name = out_name.unwrap_or_else(|| {
                 let now = chrono::Utc::now();
                 format!("kernelsu_patched_{}.img", now.format("%Y%m%d_%H%M%S"))
@@ -1077,7 +1077,7 @@ pub fn restore(args: BootRestoreArgs) -> Result<()> {
     let should_write_output = true;
 
     if should_write_output {
-        let output_dir = out.unwrap_or(std::env::current_dir()?);
+        let output_dir = out.map_or_else(std::env::current_dir, Ok)?;
         let name = out_name.unwrap_or_else(|| {
             let now = chrono::Utc::now();
             format!("kernelsu_restore_{}.img", now.format("%Y%m%d_%H%M%S"))
