@@ -378,7 +378,11 @@ pub fn exec_stage_script(stage: &str, wait: ScriptWait) -> Result<()> {
             return Ok(());
         }
 
-        exec_script(&script_path, wait)
+        // one module's script failing to start must not skip the other modules' scripts
+        if let Err(e) = exec_script(&script_path, wait) {
+            warn!("Failed to exec {}: {e}", script_path.display());
+        }
+        Ok(())
     })?;
 
     Ok(())
@@ -400,7 +404,9 @@ pub fn exec_common_scripts(dir: &str, wait: ScriptWait) -> Result<()> {
             continue;
         }
 
-        exec_script(path, wait)?;
+        if let Err(e) = exec_script(&path, wait) {
+            warn!("Failed to exec {}: {e}", path.display());
+        }
     }
 
     Ok(())
@@ -414,7 +420,9 @@ pub fn load_system_prop() -> Result<()> {
         }
         info!("load {} system.prop", module.display());
 
-        crate::android::resetprop::load_system_prop_file(&system_prop)?;
+        if let Err(e) = crate::android::resetprop::load_system_prop_file(&system_prop) {
+            warn!("Failed to load {}: {e}", system_prop.display());
+        }
 
         Ok(())
     })?;
