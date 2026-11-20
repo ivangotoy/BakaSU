@@ -197,6 +197,8 @@ PKG="$(printf '%s' "$BADGING" | sed -n "s/^package: name='\([^']*\)'.*/\1/p")"
 git show "$BASE_SHA:.forgejo/apk-cert.py" > "$AUTH_DIR/apk-cert.py"
 read -r CERT_SIZE CERT_SHA < <(python3 -I "$AUTH_DIR/apk-cert.py" "$APK_SRC")
 [[ "$CERT_SHA" =~ ^[0-9a-f]{64}$ ]] || die "cannot read the APK signing certificate"
+# kernel/manager/apk_sign.c rejects a signing certificate larger than CERT_MAX_LENGTH (1024)
+[ "$CERT_SIZE" -le 1024 ] || die "signing certificate is $CERT_SIZE bytes; the kernel accepts at most 1024"
 APK_SHA="$(sha "$APK_SRC")"
 TAG="$(printf '%s-ci%s' "$VERSION_NAME" "$RUN_NUMBER" | sed -E 's/[^A-Za-z0-9._-]+/-/g')"
 APK_NAME="BakaSU-$TAG-$ABI.apk"
