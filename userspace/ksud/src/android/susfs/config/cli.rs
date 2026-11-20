@@ -202,7 +202,12 @@ pub fn run(command: ConfigCommand) -> Result<()> {
 }
 
 fn update_config(action: impl FnOnce(&mut Config) -> Result<()>) -> Result<()> {
-    let mut config = Config::read_or_default();
+    // an existing config that does not parse is not replaced by defaults plus this change
+    let mut config = if std::fs::exists(crate::defs::SUSFS_CONFIG)? {
+        Config::read().context("SUSFS config unreadable; `ksud susfs config restore` resets it")?
+    } else {
+        Config::default()
+    };
     action(&mut config)?;
     config.save()
 }
