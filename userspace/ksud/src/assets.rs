@@ -21,7 +21,8 @@ mod android {
         use std::os::unix::fs::MetadataExt;
         // Already linked: keep it. The kernel marks /data/adb/ksud immutable while a dynamic
         // manager runs (kernel/hook/setuid_hook.c), so unlink + link would fail there.
-        if let (Ok(link), Ok(daemon)) = (std::fs::metadata(KSU_SUSFS), std::fs::metadata(DAEMON_PATH))
+        if let (Ok(link), Ok(daemon)) =
+            (std::fs::metadata(KSU_SUSFS), std::fs::metadata(DAEMON_PATH))
             && link.dev() == daemon.dev()
             && link.ino() == daemon.ino()
         {
