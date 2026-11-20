@@ -699,6 +699,23 @@ static int ksu_umount_list_getlist(struct ksu_manage_try_umount_cmd *cmd, bool l
 
     down_read(&mount_list_lock);
 
+    // cmd->flags != 0: capacity of user_buf; refuse instead of writing past it when the list
+    // grew after GETSIZE (0 keeps the old unbounded behaviour)
+    if (cmd->flags) {
+        size_t total_size = 0;
+
+        list_for_each_entry (entry, &mount_list, list) {
+            total_size += strlen(entry->umountable) + 1;
+            if (!legacy)
+                total_size += sizeof(entry->flags);
+        }
+
+        if (total_size > cmd->flags) {
+            up_read(&mount_list_lock);
+            return -ENOSPC;
+        }
+    }
+
     list_for_each_entry (entry, &mount_list, list) {
         len = strlen(entry->umountable) + 1; // +1 for \0
 
