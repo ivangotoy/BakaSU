@@ -1101,16 +1101,32 @@ pub fn restore(args: BootRestoreArgs) -> Result<()> {
     Ok(())
 }
 
+/// Undo what boot-patch adds to the ramdisk: the module, ksud's configs and the adb debug props
+/// (boot-patch itself drops those two unless --enable-adbd/--adb-debug-prop asks for them), and
+/// put the original init back.
+fn remove_ksu_entries(cpio: &mut Cpio) -> Result<()> {
+    for name in [
+        "kernelsu.ko",
+        "ksu_config",
+        KSU_BLOCK_MODULES_CONFIG,
+        "force_debuggable",
+        "adb_debug.prop",
+    ] {
+        cpio.rm(name, false);
+    }
+    if cpio.exists("init.real") {
+        cpio.mv("init.real", "init")?;
+    }
+    Ok(())
+}
+
 fn rebuild_without_ksu(
     boot_image: &BootImage<'_>,
     cpio: &mut Cpio,
     vendor_ramdisk_idx: Option<usize>,
 ) -> Result<Vec<u8>> {
     println!("- Removing KernelSU from boot image");
-    cpio.rm("kernelsu.ko", false);
-    if cpio.exists("init.real") {
-        cpio.mv("init.real", "init")?;
-    }
+    remove_ksu_entries(cpio)?;
 
     let mut new_cpio = Vec::<u8>::new();
     cpio.dump(&mut new_cpio)?;
@@ -1126,4 +1142,57 @@ fn rebuild_without_ksu(
     let mut buf = Cursor::new(Vec::<u8>::new());
     patcher.patch(&mut buf)?;
     Ok(buf.into_inner())
+}
+
+#[cfg(test)]
+mod tests {
+    use android_bootimg::cpio::{Cpio, CpioEntry};
+
+    use super::{KSU_BLOCK_MODULES_CONFIG, remove_ksu_entries};
+
+    fn add(cpio: &mut Cpio, name: &str, data: &[u8]) {
+        cpio.add(name, CpioEntry::regular(0o644, Box::new(data.to_vec())))
+            .unwrap();
+    }
+
+    #[test]
+    fn restore_removes_patch_entries_and_restores_init() {
+        let mut cpio = Cpio::new();
+        add(&mut cpio, "init", b"ksuinit");
+        add(&mut cpio, "init.real", b"stock init");
+        for name in [
+            "kernelsu.ko",
+            "ksu_config",
+            KSU_BLOCK_MODULES_CONFIG,
+            "force_debuggable",
+            "adb_debug.prop",
+        ] {
+            add(&mut cpio, name, b"x");
+        }
+        add(&mut cpio, "fstab.example", b"keep");
+        remove_ksu_entries(&mut cpio).unwrap();
+        for name in [
+            "init.real",
+            "kernelsu.ko",
+            "ksu_config",
+            KSU_BLOCK_MODULES_CONFIG,
+            "force_debuggable",
+            "adb_debug.prop",
+        ] {
+            assert!(!cpio.exists(name), "{name} left in the restored ramdisk");
+        }
+        assert_eq!(
+            cpio.entry_by_name("init").and_then(CpioEntry::data),
+            Some(&b"stock init"[..])
+        );
+        assert!(cpio.exists("fstab.example"));
+    }
+
+    #[test]
+    fn restore_of_a_ramdisk_without_patch_entries_is_a_no_op() {
+        let mut cpio = Cpio::new();
+        add(&mut cpio, "init", b"stock init");
+        remove_ksu_entries(&mut cpio).unwrap();
+        assert!(cpio.exists("init"));
+    }
 }
