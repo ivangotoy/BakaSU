@@ -1,0 +1,49 @@
+# Builds the manager (arm64-v8a) from main merged with upstream main, signs it with the fork
+# key and releases it on this forge. Logic: .forgejo/manager-ci.sh.
+name: manager-release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: kernelsu-ci
+    timeout-minutes: 170
+    steps:
+      - name: Build (no release token, unprivileged build user)
+        env:
+          CLONE_TOKEN: ${{ github.token }}
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          BASE_SHA: ${{ github.sha }}
+          SIGN_KEYSTORE_B64: ${{ secrets.SIGN_KEYSTORE_B64 }}
+          SIGN_KEY_ALIAS: ${{ secrets.SIGN_KEY_ALIAS }}
+          SIGN_STORE_PASSWORD: ${{ secrets.SIGN_STORE_PASSWORD }}
+          SIGN_KEY_PASSWORD: ${{ secrets.SIGN_KEY_PASSWORD }}
+          GIT_HTTP_LOW_SPEED_LIMIT: 1024
+          GIT_HTTP_LOW_SPEED_TIME: 60
+        # private repo: the job token clones (header by environment, never argv); main may have
+        # moved since the dispatch: build the dispatched commit with its own script
+        run: |
+          set -eu
+          GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.extraHeader \
+            GIT_CONFIG_VALUE_0="Authorization: basic $(printf 'x-access-token:%s' "$CLONE_TOKEN" | base64 -w0)" \
+            git clone -q --no-tags --branch main "$SERVER_URL/$REPOSITORY.git" src
+          unset CLONE_TOKEN
+          git -C src checkout -q "$BASE_SHA"
+          bash src/.forgejo/manager-ci.sh build src
+      - name: Release (script from the dispatched commit)
+        env:
+          RELEASE_TOKEN: ${{ secrets.MODULE_RELEASE_TOKEN }}
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          BASE_SHA: ${{ github.sha }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          set -eu
+          trap 'rm -f .auth-header' EXIT
+          (umask 077; printf 'Authorization: token %s\n' "$RELEASE_TOKEN" > .auth-header)
+          curl -fsS --connect-timeout 30 --max-time 120 -H @.auth-header -o manager-ci.sh \
+            "$SERVER_URL/api/v1/repos/$REPOSITORY/raw/.forgejo/manager-ci.sh?ref=$BASE_SHA"
+          rm -f .auth-header
+          bash manager-ci.sh release src
