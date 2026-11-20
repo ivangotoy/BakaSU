@@ -377,7 +377,8 @@ install_module() {
   local MODDIRNAME=modules
   $BOOTMODE && MODDIRNAME=modules_update
   local MODULEROOT=$NVBASE/$MODDIRNAME
-  MODID=`grep_prop id $TMPDIR/module.prop`
+  # the id ksud validated (module.prop read as a properties file); grep_prop only without ksud
+  MODID=${KSU_MODULE:-$(grep_prop id $TMPDIR/module.prop)}
   MODNAME=`grep_prop name $TMPDIR/module.prop`
   MODAUTH=`grep_prop author $TMPDIR/module.prop`
   MODPATH=$MODULEROOT/$MODID

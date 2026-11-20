@@ -97,6 +97,7 @@ done
 cp "\$1" "\$out"
 EOF
 for t in aapt2 apksigner zipalign; do ln -s "$BT/$t" "$W/bin/$t"; done
+printf '#!/bin/sh\nexec tr -d "\\r"\n' > "$W/bin/dos2unix"
 chmod +x "$W"/bin/* "$W/rust/cargo/bin/rustup" "$BT"/* "$SDK"/build-tools/9.0.0/* "$SDK"/ndk/*/toolchains/llvm/prebuilt/*/bin/*
 export PATH="$W/bin:$PATH" FAKE_FORGE="$W/forge" FAKE_SERVER_URL="$SERVER" FAKE_TOKEN="$TOKEN" \
     FIXTURE_STORE_PW="$STORE_PW" FIXTURE_KEY_PW="$KEY_PW"
@@ -319,6 +320,20 @@ check "release: asset URL outside the forge refused, token header never sent the
 rcase repo-asset "$B" "$U0" "$W/a735.apk" - FAKE_ASSET_URL="$SERVER/owner/BakaSU/releases/download/v4.2.0-rc3-ci9/a7"
 check "release: asset URL in the repository download path of the forge accepted" 'ok repo-asset && said repo-asset "downloading back $SERVER/owner/"'
 for n in "$W"/r/*/; do n="$(basename "$n")"; check "release ($n): token never in argv or log" "notoken $n"; done
+
+echo "--- ksud installer.sh: module id of install_module"
+INST="$TREE/userspace/ksud/src/android/module/installer.sh"
+modid() { # modid <module.prop text> [KSU_MODULE]: MODID as install_module sets it
+    mkdir -p "$W/inst" && printf '%s\n' "$1" > "$W/inst/module.prop"
+    (   TMPDIR="$W/inst"; unset KSU_MODULE; [ $# -lt 2 ] || KSU_MODULE="$2"
+        eval "$(sed -n '/^grep_prop() {/,/^}/p' "$INST")"
+        eval "$(grep -m1 '^  MODID=' "$INST")"
+        printf '%s' "$MODID" )
+}
+check "installer: MODID is the validated id when another value contains id= first" \
+    '[ "$(modid "$(printf "updateJson=https://example.com/u.json?id=other\nid=good")" good)" = good ]'
+check "installer: MODID is the validated id for a spaced key (id = x)" '[ "$(modid "id = spaced" spaced)" = spaced ]'
+check "installer: MODID from module.prop without KSU_MODULE" '[ "$(modid "$(printf "name=x\nid=plain")")" = plain ]'
 
 echo
 echo "forgejo tests: $npass passed, $nfail failed"
