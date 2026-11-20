@@ -54,11 +54,9 @@ pub fn clear() -> Result<()> {
 
     let string = serde_json::to_string_pretty(&empty)?;
 
-    fs::write(defs::DYNAMIC_MANAGER, string)?;
-
     ksucalls::dynamic_manager_clear()?;
 
-    Ok(())
+    write_config(&string)
 }
 
 pub fn set(size: u32, hash: [u8; 64]) -> Result<()> {
@@ -70,8 +68,19 @@ pub fn set(size: u32, hash: [u8; 64]) -> Result<()> {
 
     let string = serde_json::to_string_pretty(&json_raw)?;
 
-    fs::write(defs::DYNAMIC_MANAGER, string)?;
-
     ksucalls::dynamic_manager_set_synchronous(size, hash)?;
+
+    write_config(&string)
+}
+
+/// Persist only what the kernel accepted (booted_load re-applies the file at every boot), and
+/// replace the file atomically: a truncated file would lose the manager at the next boot.
+fn write_config(content: &str) -> Result<()> {
+    let tmp = format!("{}.tmp", defs::DYNAMIC_MANAGER);
+    fs::write(&tmp, content)
+        .and_then(|()| fs::rename(&tmp, defs::DYNAMIC_MANAGER))
+        .inspect_err(|_| {
+            let _ = fs::remove_file(&tmp);
+        })?;
     Ok(())
 }
