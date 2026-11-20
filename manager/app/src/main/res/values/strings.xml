@@ -456,7 +456,7 @@
     <string name="download_cancel">Cancel</string>
     <string name="download_install">Install</string>
     <string name="notification_permission_description">Notification permission is needed to show download progress.</string>
-    <string name="notification_permission_denied">Download failed: Notification permission is required</string>
+    <string name="notification_permission_denied" tools:ignore="UnusedResources">Download failed: Notification permission is required</string>
     <string name="storage_permission_description">External Storage permission is needed to write file.</string>
     <string name="storage_permission_denied">Download failed: External Storage permission is required</string>
     <string name="local_network_permission_description">Local network permission is needed to check module updates from local network hosts.</string>
