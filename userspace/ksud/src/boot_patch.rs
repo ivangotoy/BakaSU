@@ -1169,8 +1169,23 @@ fn remove_ksu_entries(cpio: &mut Cpio) -> Result<()> {
     }
     if cpio.exists("init.real") {
         cpio.mv("init.real", "init")?;
+    } else if cpio
+        .entry_by_name("init")
+        .and_then(CpioEntry::data)
+        .is_some_and(is_ksuinit)
+    {
+        // the stock ramdisk had no /init (boot-patch adds one without moving anything): drop
+        // ksuinit, but never an /init that is not ksuinit's
+        cpio.rm("init", false);
     }
     Ok(())
+}
+
+/// ksuinit logs "Hello, KernelSU!" at start (userspace/ksuinit/src/init.rs, unchanged since
+/// ksuinit was added); no stock init carries that string.
+fn is_ksuinit(data: &[u8]) -> bool {
+    const MARKER: &[u8] = b"Hello, KernelSU!";
+    data.windows(MARKER.len()).any(|w| w == MARKER)
 }
 
 fn rebuild_without_ksu(
@@ -1281,6 +1296,21 @@ mod tests {
             Some(&b"stock init"[..])
         );
         assert!(cpio.exists("fstab.example"));
+    }
+
+    #[test]
+    fn restore_without_init_real_drops_only_ksuinit() {
+        let mut cpio = Cpio::new();
+        add(&mut cpio, "init", b"\x7fELF..log: Hello, KernelSU!..");
+        add(&mut cpio, "kernelsu.ko", b"x");
+        remove_ksu_entries(&mut cpio).unwrap();
+        assert!(!cpio.exists("init"), "ksuinit left as /init");
+
+        let mut cpio = Cpio::new();
+        add(&mut cpio, "init", b"\x7fELF..stock init..");
+        add(&mut cpio, "kernelsu.ko", b"x");
+        remove_ksu_entries(&mut cpio).unwrap();
+        assert!(cpio.exists("init"), "a stock /init must never be removed");
     }
 
     #[test]
