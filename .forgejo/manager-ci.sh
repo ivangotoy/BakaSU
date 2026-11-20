@@ -40,6 +40,9 @@ if [ "$MODE" = build-user ]; then
     for v in SIGN_KEYSTORE_B64 SIGN_KEY_ALIAS SIGN_STORE_PASSWORD SIGN_KEY_PASSWORD; do
         [ -n "${!v:-}" ] || die "$v is not set"
     done
+    # shell variables from here on: cargo, Gradle and their build scripts do not inherit them;
+    # only the sign step gets the passwords, in its own environment
+    export -n SIGN_KEYSTORE_B64 SIGN_KEY_ALIAS SIGN_STORE_PASSWORD SIGN_KEY_PASSWORD
     BASE_SHA="${BASE_SHA:-$(git rev-parse HEAD)}"
     rm -rf "$OUT"; mkdir -p "$OUT"
     printf '.ci-out/\n.ci-home/\n/target/\n/dist/\n' >> .git/info/exclude
@@ -107,7 +110,8 @@ if [ "$MODE" = build-user ]; then
     (umask 077; printf '%s' "$SIGN_KEYSTORE_B64" | base64 -d > "$KEY")
     rm -rf dist
     # upstream repack_apk_multi.py, with apksigner reading the passwords from its environment
-    python3 -I .forgejo/repack-sign.py "$WORK" "$ABI" "$KEY" "$SIGN_KEY_ALIAS" >&2
+    SIGN_STORE_PASSWORD="$SIGN_STORE_PASSWORD" SIGN_KEY_PASSWORD="$SIGN_KEY_PASSWORD" \
+        python3 -I .forgejo/repack-sign.py "$WORK" "$ABI" "$KEY" "$SIGN_KEY_ALIAS" >&2
     mapfile -t apks < <(find dist -maxdepth 1 -name '*.apk')
     [ "${#apks[@]}" = 1 ] || die "repack left ${#apks[@]} APKs in dist"
     "$(build_tool apksigner)" verify "${apks[0]}" || die "apksigner verify failed"

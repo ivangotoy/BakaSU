@@ -184,6 +184,8 @@ check "build-user: only the arm64-v8a APK is repacked" \
 check "build-user: signing key file removed" '[ ! -e "$HOME/fork-key.p12" ]'
 check "build-user: apksigner sign ran (stub checks the passwords)" 'grep -q "^apksigner sign" "$W/logs/argv"'
 check "build-user: signing passwords never in argv" '! grep -qF -e "$STORE_PW" -e "$KEY_PW" "$W/logs/argv"'
+check "build-user: signing secrets not in the Gradle environment" '[ -f "$W/logs/gradle-env" ] && ! grep -q "^SIGN_" "$W/logs/gradle-env"'
+check "build-user: signing secrets not in the cargo environment" '[ -f "$W/logs/cargo-env" ] && ! grep -q "^SIGN_" "$W/logs/cargo-env"'
 
 echo "--- build-user mode (upstream already merged; failures)"
 git clone -q "$W/origin.git" "$W/b3"
