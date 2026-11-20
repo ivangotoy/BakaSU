@@ -20,6 +20,19 @@ use crate::{assets, banner};
 
 const KSU_BLOCK_MODULES_CONFIG: &str = "ksu_block_modules";
 const KSU_BLOCK_MODULES_MAX_LEN: usize = 255;
+const DEFAULT_BLOCK_MODULES: &str =
+    "vr,vklp,vklp_smaps_rollup,oplus_secure_guard,oplus_secure_guard_new,mkp";
+
+/// The ksu_block_modules list to write: the one asked for, else the valid list already in the
+/// ramdisk (a re-patch without the option keeps it), else the default.
+fn block_modules_entry(requested: Option<String>, existing: Option<&[u8]>) -> String {
+    requested.unwrap_or_else(|| {
+        existing
+            .and_then(|v| std::str::from_utf8(v).ok())
+            .filter(|v| valid_block_modules(v))
+            .map_or_else(|| DEFAULT_BLOCK_MODULES.to_owned(), str::to_owned)
+    })
+}
 
 fn valid_block_modules(modules: &str) -> bool {
     modules.len() <= KSU_BLOCK_MODULES_MAX_LEN
@@ -528,12 +541,9 @@ pub struct BootPatchArgs {
     #[arg(long, default_value = "false")]
     no_install: bool,
 
-    /// Block what module loading
-    #[arg(
-        long,
-        value_name = "NAMES",
-        default_value = "vr,vklp,vklp_smaps_rollup,oplus_secure_guard,oplus_secure_guard_new,mkp"
-    )]
+    /// Block what module loading (default: keep the image's list, else
+    /// vr,vklp,vklp_smaps_rollup,oplus_secure_guard,oplus_secure_guard_new,mkp)
+    #[arg(long, value_name = "NAMES")]
     block_modules: Option<String>,
 
     #[cfg(not(target_os = "android"))]
@@ -862,7 +872,12 @@ pub fn patch(args: BootPatchArgs) -> Result<()> {
         // remove legacy config file
         cpio.rm("allow_shell", false);
 
-        if let Some(modules) = block_modules {
+        {
+            let modules = block_modules_entry(
+                block_modules,
+                cpio.entry_by_name(KSU_BLOCK_MODULES_CONFIG)
+                    .and_then(CpioEntry::data),
+            );
             if !modules.is_empty() {
                 println!("- Blocking modules: {modules}");
             }
@@ -1162,7 +1177,21 @@ fn rebuild_without_ksu(
 mod tests {
     use android_bootimg::cpio::{Cpio, CpioEntry};
 
-    use super::{KSU_BLOCK_MODULES_CONFIG, remove_ksu_entries};
+    use super::{
+        DEFAULT_BLOCK_MODULES, KSU_BLOCK_MODULES_CONFIG, block_modules_entry, remove_ksu_entries,
+    };
+
+    #[test]
+    fn block_modules_list_to_write() {
+        assert_eq!(block_modules_entry(None, None), DEFAULT_BLOCK_MODULES);
+        assert_eq!(block_modules_entry(None, Some(b"custom_a,b")), "custom_a,b");
+        assert_eq!(
+            block_modules_entry(None, Some(b"bad name")),
+            DEFAULT_BLOCK_MODULES
+        );
+        assert_eq!(block_modules_entry(Some(String::new()), Some(b"a")), "");
+        assert_eq!(block_modules_entry(Some("x".into()), Some(b"a")), "x");
+    }
 
     fn add(cpio: &mut Cpio, name: &str, data: &[u8]) {
         cpio.add(name, CpioEntry::regular(0o644, Box::new(data.to_vec())))
