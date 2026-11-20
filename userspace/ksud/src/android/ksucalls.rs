@@ -143,6 +143,11 @@ fn init_driver_fd() -> Option<RawFd> {
 
 // ioctl wrapper using libc
 fn ksuctl<T>(request: u32, arg: *mut T) -> Result<i32> {
+    ksuctl_io(request, arg)?.map_err(|e| anyhow::anyhow!("ioctl failed: {e}"))
+}
+
+/// Like ksuctl, keeping the ioctl's errno for callers that handle a specific one
+fn ksuctl_io<T>(request: u32, arg: *mut T) -> Result<io::Result<i32>> {
     let fd = *DRIVER_FD.get_or_init(|| init_driver_fd().unwrap_or(-1));
     if fd < 0 {
         bail!("could not retrieve kernelsu driver fd")
@@ -150,9 +155,9 @@ fn ksuctl<T>(request: u32, arg: *mut T) -> Result<i32> {
     unsafe {
         let ret = libc::ioctl(fd as libc::c_int, request as i32, arg);
         if ret < 0 {
-            bail!("ioctl failed: {}", io::Error::last_os_error());
+            return Ok(Err(io::Error::last_os_error()));
         }
-        Ok(ret)
+        Ok(Ok(ret))
     }
 }
 
@@ -508,25 +513,35 @@ pub fn dynamic_manager_clear() -> anyhow::Result<()> {
 /// List all mount points in umount list
 pub fn umount_list_list() -> anyhow::Result<Vec<MountInfo>> {
     const FLAGS_SIZE: usize = std::mem::size_of::<u32>();
-    let mut total_size: usize = 0;
-    let mut size_cmd = uapi::ksu_manage_try_umount_cmd {
-        arg: &raw mut total_size as u64,
-        flags: 0,
-        mode: uapi::KSU_UMOUNT_GETSIZE_NEW_RUST,
-    };
-    ksuctl(uapi::KSU_IOCTL_MANAGE_TRY_UMOUNT_RUST, &raw mut size_cmd)?;
+    // flags of GETLIST = buffer capacity: a kernel that knows it answers ENOSPC instead of
+    // writing past the buffer when the list grew after GETSIZE (then size it again); an older
+    // kernel ignores it
+    let mut attempts = 0;
+    let buffer = loop {
+        let mut total_size: usize = 0;
+        let mut size_cmd = uapi::ksu_manage_try_umount_cmd {
+            arg: &raw mut total_size as u64,
+            flags: 0,
+            mode: uapi::KSU_UMOUNT_GETSIZE_NEW_RUST,
+        };
+        ksuctl(uapi::KSU_IOCTL_MANAGE_TRY_UMOUNT_RUST, &raw mut size_cmd)?;
 
-    if total_size == 0 {
-        return Ok(vec![]);
-    }
+        if total_size == 0 {
+            return Ok(vec![]);
+        }
 
-    let mut buffer = vec![0u8; total_size];
-    let mut list_cmd = uapi::ksu_manage_try_umount_cmd {
-        arg: buffer.as_mut_ptr() as u64,
-        flags: 0,
-        mode: uapi::KSU_UMOUNT_GETLIST_NEW_RUST,
+        let mut buffer = vec![0u8; total_size];
+        let mut list_cmd = uapi::ksu_manage_try_umount_cmd {
+            arg: buffer.as_mut_ptr() as u64,
+            flags: u32::try_from(total_size).unwrap_or(u32::MAX),
+            mode: uapi::KSU_UMOUNT_GETLIST_NEW_RUST,
+        };
+        match ksuctl_io(uapi::KSU_IOCTL_MANAGE_TRY_UMOUNT_RUST, &raw mut list_cmd)? {
+            Ok(_) => break buffer,
+            Err(e) if e.raw_os_error() == Some(libc::ENOSPC) && attempts < 3 => attempts += 1,
+            Err(e) => bail!("ioctl failed: {e}"),
+        }
     };
-    ksuctl(uapi::KSU_IOCTL_MANAGE_TRY_UMOUNT_RUST, &raw mut list_cmd)?;
 
     let mut list = Vec::new();
     let mut cursor = 0;
