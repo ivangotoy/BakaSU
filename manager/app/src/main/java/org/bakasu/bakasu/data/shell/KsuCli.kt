@@ -319,9 +319,9 @@ class KsuCliRepository(context: Context) {
         val id = runCatching {
             ZipFile(zip).use { archive ->
                 val entry = archive.getEntry("module.prop") ?: return@use null
-                archive.getInputStream(entry).bufferedReader().useLines { lines ->
-                    lines.map { it.trim() }.firstOrNull { it.startsWith("id=") }
-                        ?.substringAfter('=')?.trim()
+                // read like ksud (properties file, UTF-8): the last id wins, "id = x" is valid
+                archive.getInputStream(entry).bufferedReader().use { reader ->
+                    java.util.Properties().apply { load(reader) }.getProperty("id")?.trim()
                 }
             }
         }.getOrNull()
