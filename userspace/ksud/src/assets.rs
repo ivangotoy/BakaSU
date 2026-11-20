@@ -18,6 +18,15 @@ mod android {
 
     /// Create the ksu_susfs -> ksud hard link (it shares the same inode as ksud).
     pub fn ensure_susfs_link() -> anyhow::Result<()> {
+        use std::os::unix::fs::MetadataExt;
+        // Already linked: keep it. The kernel marks /data/adb/ksud immutable while a dynamic
+        // manager runs (kernel/hook/setuid_hook.c), so unlink + link would fail there.
+        if let (Ok(link), Ok(daemon)) = (std::fs::metadata(KSU_SUSFS), std::fs::metadata(DAEMON_PATH))
+            && link.dev() == daemon.dev()
+            && link.ino() == daemon.ino()
+        {
+            return Ok(());
+        }
         let ksu_susfs = KSU_SUSFS;
         let _ = std::fs::remove_file(ksu_susfs);
         std::fs::hard_link(DAEMON_PATH, ksu_susfs)?;
