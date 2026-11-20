@@ -804,20 +804,25 @@ fn install_module_to_system(zip: &str) -> Result<String> {
 
     // Extract zip to target directory
     println!("- Extracting module files");
-    archive.extract(&updated_dir)?;
+    archive
+        .extract(&updated_dir)
+        .inspect_err(|_| discard_staged_install(&updated_dir, module_id))?;
     // Only installer.sh may request a hot install, not a file shipped in the zip
     std::fs::remove_file(updated_dir.join(defs::HOT_INSTALL_MARKER)).ok();
 
     // Set permission and selinux context for $MOD/system
     let module_system_dir = updated_dir.join("system");
     if module_system_dir.exists() {
-        set_permissions(&module_system_dir, Permissions::from_mode(0o755))?;
-        restore_syscon(&module_system_dir)?;
+        set_permissions(&module_system_dir, Permissions::from_mode(0o755))
+            .inspect_err(|_| discard_staged_install(&updated_dir, module_id))?;
+        restore_syscon(&module_system_dir)
+            .inspect_err(|_| discard_staged_install(&updated_dir, module_id))?;
     }
 
     // Execute install script
     println!("- Running module installer");
-    exec_install_script(zip, is_metamodule, module_id)?;
+    exec_install_script(zip, is_metamodule, module_id)
+        .inspect_err(|_| discard_staged_install(&updated_dir, module_id))?;
 
     if let Some(request) = hot_install::take_request(&updated_dir)
         && hot_install::apply(module_id, is_metamodule, &request)
@@ -847,6 +852,14 @@ fn install_module_to_system(zip: &str) -> Result<String> {
     info!("Module {module_id} installed successfully!");
 
     Ok(module_id.to_owned())
+}
+
+/// A failed install must not leave a staged module: the next boot would move the partial
+/// modules_update/<id> over the installed module (handle_updated_modules). The update marker of an
+/// earlier staged install goes too, as ensure_clean_dir already removed that staging dir.
+fn discard_staged_install(updated_dir: &Path, module_id: &str) {
+    let _ = remove_dir_all(updated_dir);
+    let _ = std::fs::remove_file(Path::new(MODULE_DIR).join(module_id).join(UPDATE_FILE_NAME));
 }
 
 pub fn install_module(zip: &str) -> Result<()> {
