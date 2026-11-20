@@ -31,8 +31,8 @@ pub fn set_uname(release: &str, version: &str) -> Result<()> {
     // ksud stores spoof_version as the visible uname/release value and spoof_release
     // as the kernel build-time string.
     // The SuSFS ABI struct keeps the kernel field order (release, then version).
-    str_to_c_array(release, &mut info.release);
-    str_to_c_array(version, &mut info.version);
+    str_to_c_array(release, &mut info.release)?;
+    str_to_c_array(version, &mut info.version)?;
     info.err = ERR_CMD_NOT_SUPPORTED;
 
     susfsctl(CMD_SUSFS_SET_UNAME, &mut info);

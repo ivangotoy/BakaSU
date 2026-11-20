@@ -35,7 +35,7 @@ pub fn add_sus_path(path: &str, is_loop: bool) -> Result<()> {
         true => CMD_SUSFS_ADD_SUS_PATH_LOOP,
         false => CMD_SUSFS_ADD_SUS_PATH,
     };
-    str_to_c_array(path, &mut info.target_pathname);
+    str_to_c_array(path, &mut info.target_pathname)?;
     info.err = ERR_CMD_NOT_SUPPORTED;
 
     susfsctl(magic, &mut info);

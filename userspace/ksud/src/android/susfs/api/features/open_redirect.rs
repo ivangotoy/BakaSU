@@ -42,13 +42,13 @@ pub fn add_open_redirect(
     str_to_c_array(
         abs_target.to_str().ok_or(anyhow!("Invalid target path!"))?,
         &mut info.target_pathname,
-    );
+    )?;
     str_to_c_array(
         abs_redirect
             .to_str()
             .ok_or(anyhow!("Invalid redirect path!"))?,
         &mut info.redirected_pathname,
-    );
+    )?;
 
     info.uid_scheme = (*uid_scheme) as i32;
     info.err = ERR_CMD_NOT_SUPPORTED;

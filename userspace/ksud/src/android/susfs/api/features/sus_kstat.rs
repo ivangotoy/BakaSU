@@ -118,7 +118,7 @@ pub fn update_sus_kstat(path: &str, full_clone: bool) -> Result<()> {
         false => SusKstatSpoofFlags::AUTO,
     };
 
-    str_to_c_array(path, &mut info.target_pathname);
+    str_to_c_array(path, &mut info.target_pathname)?;
 
     info.is_statically = false;
     info.target_ino = md.ino() as c_ulong;
@@ -135,7 +135,7 @@ pub fn add_sus_kstat(path: &str) -> Result<()> {
     let md = fs::metadata(path)?;
     let mut info = SusfsSusKstat::default();
 
-    str_to_c_array(path, &mut info.target_pathname);
+    str_to_c_array(path, &mut info.target_pathname)?;
     copy_metadata_to_sus_kstat(&mut info, &md);
 
     info.is_statically = false;
@@ -172,7 +172,7 @@ pub fn add_sus_kstat_statically(
         ..Default::default()
     };
 
-    str_to_c_array(path, &mut info.target_pathname);
+    str_to_c_array(path, &mut info.target_pathname)?;
 
     macro_rules! set_spoof_field {
         ($field:ident, $opt_val:expr, $ty:ty, $flag:ident) => {

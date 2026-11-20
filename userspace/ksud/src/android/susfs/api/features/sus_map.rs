@@ -27,7 +27,7 @@ impl Default for SusfsSusMap {
 pub fn add_sus_map(path: &str) -> Result<()> {
     ensure_path_exists!(path);
     let mut info = SusfsSusMap::default();
-    str_to_c_array(path, &mut info.target_pathname);
+    str_to_c_array(path, &mut info.target_pathname)?;
     info.err = ERR_CMD_NOT_SUPPORTED;
 
     susfsctl(CMD_SUSFS_ADD_SUS_MAP, &mut info);
