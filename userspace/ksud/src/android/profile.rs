@@ -11,7 +11,9 @@ use crate::{
 /// manager reads the templates back, so an interrupted write must not leave a truncated file.
 /// The temp file lives outside the listed directories (same file system).
 fn write_replace(path: &Path, content: &str) -> Result<()> {
-    let tmp = Path::new(defs::WORKING_DIR).join(".profile_write.tmp");
+    // per process: concurrent writers of different targets must not share a temp file
+    let tmp =
+        Path::new(defs::WORKING_DIR).join(format!(".profile_write.{}.tmp", std::process::id()));
     std::fs::write(&tmp, content)
         .and_then(|()| std::fs::rename(&tmp, path))
         .inspect_err(|_| {
