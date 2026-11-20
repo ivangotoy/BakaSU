@@ -101,21 +101,11 @@ private fun requestDownloadPermissions(
     onGranted: () -> Unit,
 ) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        // sdk 32+, require post_notifications permission
+        // sdk 33+: ask for post_notifications for the progress notification, but download
+        // either way (without it the foreground service runs with a hidden notification)
         permissionRequestInterface.requestPermission(
             permission = Manifest.permission.POST_NOTIFICATIONS,
-            callback = { success ->
-                if (!success) {
-                    Toast.makeText(
-                        context,
-                        context.getString(R.string.notification_permission_denied),
-                        Toast.LENGTH_SHORT,
-                    ).show()
-                    return@requestPermission
-                }
-
-                onGranted()
-            },
+            callback = { _ -> onGranted() },
             requestDescription = context.getString(R.string.notification_permission_description),
         )
     } else if (Build.VERSION.SDK_INT == Build.VERSION_CODES.S_V2) {
