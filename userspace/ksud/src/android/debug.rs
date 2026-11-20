@@ -84,10 +84,10 @@ pub fn insmod(module: &Path, params: &[String]) -> Result<()> {
 
 /// Get mark status for a process
 pub fn mark_get(pid: i32) -> Result<()> {
-    let result = ksucalls::mark_get(pid)?;
     if pid == 0 {
         bail!("Please specify a pid to get its mark status");
     }
+    let result = ksucalls::mark_get(pid)?;
     println!(
         "Process {pid} mark status: {}",
         if result != 0 { "marked" } else { "unmarked" }
