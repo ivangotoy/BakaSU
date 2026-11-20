@@ -3,7 +3,6 @@ package org.bakasu.bakasu.ui.webui
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.ActivityManager
-import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
@@ -148,10 +147,15 @@ internal suspend fun prepareWebView(
                     val onWebUi = url.scheme.equals("https", ignoreCase = true) &&
                         url.host.equals("mui.kernelsu.org", ignoreCase = true)
                     if (!request.isForMainFrame || onWebUi) return false
-                    try {
-                        activity.startActivity(Intent(Intent.ACTION_VIEW, url))
-                    } catch (_: ActivityNotFoundException) {
-                        // no app can open it: the WebUI stays where it is
+                    // only web pages go to the browser; file:, content:, intent: and others are blocked
+                    val web = url.scheme.equals("http", ignoreCase = true) ||
+                        url.scheme.equals("https", ignoreCase = true)
+                    if (web) {
+                        try {
+                            activity.startActivity(Intent(Intent.ACTION_VIEW, url))
+                        } catch (_: RuntimeException) {
+                            // no app can open it, or it may not be started: the WebUI stays where it is
+                        }
                     }
                     return true
                 }
