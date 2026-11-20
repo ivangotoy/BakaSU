@@ -171,8 +171,21 @@ class KsuCliRepository(context: Context) {
         val out = shell.newJob()
             .add("${getKsuDaemonPath()} debug get-sign ${shellQuote(packageResourcePath)}")
             .to(ArrayList<String>(), null).exec().out
-        out.firstOrNull()?.trim()
-            .orEmpty() == "size: 0x377, hash: d3469712b6214462764a1d8d3e5cbe1d6819a0b629791b9f4101867821f1df64"
+        val sign = parseSign(out.firstOrNull())
+        if (sign == 0x377 to "d3469712b6214462764a1d8d3e5cbe1d6819a0b629791b9f4101867821f1df64") return@withContext true
+        // Fork build: a signature registered as the kernel's dynamic manager is ours too
+        val dynamic = shell.newJob()
+            .add("${getKsuDaemonPath()} kernel dynamic-manager get")
+            .to(ArrayList<String>(), null).exec().out
+        sign != null && sign == parseSign(dynamic.firstOrNull())
+    }
+
+    // "size: 0x377, hash: <64 hex>" (debug get-sign) or "size: 725, hash: <64 hex>" (dynamic-manager get)
+    private fun parseSign(line: String?): Pair<Int, String>? {
+        val m = Regex("""size:\s*(0x[0-9a-fA-F]+|\d+),\s*hash:\s*([0-9a-f]{64})""").find(line ?: return null) ?: return null
+        val raw = m.groupValues[1]
+        val size = (if (raw.startsWith("0x")) raw.substring(2).toIntOrNull(16) else raw.toIntOrNull()) ?: return null
+        return size to m.groupValues[2]
     }
 
     suspend fun getFeatureStatus(feature: String): String = withContext(Dispatchers.IO) {
