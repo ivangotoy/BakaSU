@@ -100,7 +100,10 @@ pub fn save_binary_config(features: &HashMap<u32, u64>) -> Result<()> {
     crate::android::utils::ensure_dir_exists(Path::new(defs::WORKING_DIR))?;
 
     let path = Path::new(FEATURE_CONFIG_PATH);
-    let mut file = File::create(path).with_context(|| "Failed to create feature config")?;
+    // written to a temp file and renamed over the config: an interrupted save keeps the old one
+    let mut temp = tempfile::NamedTempFile::new_in(defs::WORKING_DIR)
+        .with_context(|| "Failed to create feature config")?;
+    let file = temp.as_file_mut();
 
     file.write_all(&FEATURE_MAGIC.to_le_bytes())
         .with_context(|| "Failed to write magic")?;
@@ -121,6 +124,8 @@ pub fn save_binary_config(features: &HashMap<u32, u64>) -> Result<()> {
 
     file.sync_all()
         .with_context(|| "Failed to sync feature config")?;
+    temp.persist(path)
+        .with_context(|| "Failed to replace feature config")?;
 
     log::info!("Saved {} features to config", features.len());
     Ok(())

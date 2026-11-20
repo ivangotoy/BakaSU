@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs, path::Path};
+use std::{collections::HashMap, fs, io::Write, path::Path};
 
 use anyhow::Result;
 use log::info;
@@ -23,7 +23,16 @@ fn read_config() -> Result<Config> {
 
 fn write_config(config: &Config) -> Result<()> {
     let content = serde_json::to_string_pretty(config)?;
-    fs::write(defs::UMOUNT_CONFIG_PATH, content)?;
+    write_replace(&content)
+}
+
+/// Replace the config file atomically: an interrupted write never leaves a truncated file.
+fn write_replace(content: &str) -> Result<()> {
+    let path = Path::new(defs::UMOUNT_CONFIG_PATH);
+    let mut temp = tempfile::NamedTempFile::new_in(path.parent().unwrap_or(Path::new(".")))?;
+    temp.write_all(content.as_bytes())?;
+    temp.as_file().sync_all()?;
+    temp.persist(path)?;
     Ok(())
 }
 
@@ -79,14 +88,14 @@ fn ensure_config() -> Result<()> {
 
     if !path.exists() {
         let content = serde_json::to_string_pretty(&Config::default())?;
-        fs::write(path, content)?;
+        write_replace(&content)?;
         return Ok(());
     }
 
     let buf = fs::read_to_string(path)?;
     if buf.trim().is_empty() || serde_json::from_str::<Config>(&buf).is_err() {
         let content = serde_json::to_string_pretty(&Config::default())?;
-        fs::write(path, content)?;
+        write_replace(&content)?;
     }
 
     Ok(())
