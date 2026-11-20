@@ -158,10 +158,31 @@ fn connect_to_device(port: u16) -> Result<ADBTcpDevice> {
     bail!("Failed to connect to ADB device after {MAX_RETRIES} attempts")
 }
 
+/// The parent's best-effort undo of enable_adb_root when the post-magica child never ran (it
+/// restores the props itself): property files writable, props restored, files read-only again.
+fn restore_adb_props() {
+    let files = ["ro.debuggable", "ro.adb.secure"]
+        .map(|prop| sys_prop::get_context(prop).map(|ctx| format!("/dev/__properties__/{ctx}")));
+    let mut paths = vec!["/dev/__properties__/properties_serial".to_string()];
+    paths.extend(files.into_iter().flatten());
+    let chmod = |mode: &str| {
+        for path in &paths {
+            if let Err(e) = exec_shell_commands(&[("chmod", &[mode, path.as_str()])], "Restoring") {
+                error!("{e}");
+            }
+        }
+    };
+    chmod("0644");
+    if let Err(e) = disable_adb_root() {
+        error!("disable adb root failed: {e}");
+    }
+    chmod("0444");
+}
+
 pub fn run(port: u16, package_name: &String, allow_shell: bool) -> Result<()> {
     enable_adb_root(port)?;
 
-    let mut device = connect_to_device(port)?;
+    let mut device = connect_to_device(port).inspect_err(|_| restore_adb_props())?;
 
     let self_path = std::env::current_exe().context("Failed to get self exe path")?;
 
