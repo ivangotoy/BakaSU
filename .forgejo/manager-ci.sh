@@ -188,7 +188,8 @@ if [ "$SRC_SHA" != "$BASE_SHA" ]; then
     regular "$OUT/merge.bundle"
     git fetch -q "$OUT/merge.bundle" "main:refs/ci/merge"
     [ "$(git rev-parse refs/ci/merge)" = "$SRC_SHA" ] || die "bundle tip differs from the built sha"
-    [ "$(git rev-parse "$SRC_SHA^1") $(git rev-parse "$SRC_SHA^2")" = "$BASE_SHA $UP_SHA" ] || die "merge parents differ"
+    # exactly two parents, in this order: a third parent would put foreign history on main
+    [ "$(git rev-list --parents -n 1 "$SRC_SHA")" = "$SRC_SHA $BASE_SHA $UP_SHA" ] || die "merge parents differ"
     [ "$(git merge-tree --write-tree "$BASE_SHA" "$UP_SHA")" = "$(git rev-parse "$SRC_SHA^{tree}")" ] || die "merge tree differs"
 fi
 APK_SRC="$REL/manager.apk"

@@ -298,6 +298,9 @@ rcase swapped "$MSWAP" "$U1" "$W/a735.apk" "$W/swapped.bundle"
 check "release: merge with swapped parents refused" 'failed swapped && said swapped "merge parents differ" && main_is swapped "$B"'
 rcase badtree "$MTREE" "$U1" "$W/a735.apk" "$W/badtree.bundle"
 check "release: merge with another tree refused" 'failed badtree && said badtree "merge tree differs" && main_is badtree "$B"'
+rcase octopus "$MOCT" "$U1" "$W/a735.apk" "$W/octopus.bundle"
+check "release: merge with a third parent refused, main unchanged" \
+    'failed octopus && said octopus "merge parents differ" && main_is octopus "$B" && [ "$(nrel)" = 0 ]'
 rcase corrupt "$M" "$U1" "$W/a735.apk" "$W/good.bundle" FAKE_CORRUPT_DOWNLOAD=1
 check "release: download-back mismatch deletes the draft, main unchanged" \
     'failed corrupt && said corrupt "deleting draft release" && [ "$(nrel)" = 0 ] && main_is corrupt "$B"'
