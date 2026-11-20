@@ -1025,6 +1025,8 @@ fn recover_arm64_kernel_metadata(image: &[u8]) -> Result<RecoveredKernelMetadata
     })
 }
 
+const MAX_ARM64_IMAGE_SIZE: u64 = 512 << 20;
+
 fn parse_arm64_image_size(image: &[u8]) -> Result<usize> {
     ensure!(
         image.len() >= 64,
@@ -1038,6 +1040,12 @@ fn parse_arm64_image_size(image: &[u8]) -> Result<usize> {
     ensure!(
         image_size != 0,
         "ARM64 Image header has image_size=0; unsupported input"
+    );
+    // the patched image is zero-filled to this size: refuse sizes no kernel has instead of
+    // aborting on a multi-GiB allocation
+    ensure!(
+        image_size <= MAX_ARM64_IMAGE_SIZE,
+        "ARM64 Image header has image_size={image_size:#x}, larger than {MAX_ARM64_IMAGE_SIZE:#x}"
     );
     usize::try_from(image_size).context("ARM64 Image image_size does not fit this host")
 }
@@ -2997,6 +3005,17 @@ mod tests {
         write_u64(&mut image, ARM64_IMAGE_SIZE_OFFSET, 0x20_0000).unwrap();
         write_u64(&mut image, 0x18, 0xa).unwrap();
         assert_eq!(parse_arm64_image_size(&image).unwrap(), 0x20_0000);
+    }
+
+    #[test]
+    fn arm64_image_size_rejects_oversized_header() {
+        let mut image = vec![0u8; 64];
+        image[ARM64_IMAGE_MAGIC_OFFSET..ARM64_IMAGE_MAGIC_OFFSET + 4]
+            .copy_from_slice(ARM64_IMAGE_MAGIC);
+        write_u64(&mut image, ARM64_IMAGE_SIZE_OFFSET, 0xffff_0000).unwrap();
+        assert!(parse_arm64_image_size(&image).is_err());
+        write_u64(&mut image, ARM64_IMAGE_SIZE_OFFSET, 512 << 20).unwrap();
+        assert_eq!(parse_arm64_image_size(&image).unwrap(), 512 << 20);
     }
 
     #[test]
