@@ -69,8 +69,7 @@ mod android {
 
     pub(super) fn ensure_gki_kernel() -> Result<()> {
         let version = get_kernel_version()?;
-        let is_gki = version.0 == 5 && version.1 >= 10 || version.2 > 5;
-        ensure!(is_gki, "only support GKI kernel");
+        ensure!(super::is_gki_version(version), "only support GKI kernel");
         Ok(())
     }
 
@@ -1130,6 +1129,12 @@ pub fn restore(args: BootRestoreArgs) -> Result<()> {
     Ok(())
 }
 
+/// GKI kernels are 5.10 and later (major, minor, patch)
+#[cfg(any(target_os = "android", test))]
+fn is_gki_version((major, minor, _patch): (i32, i32, i32)) -> bool {
+    major > 5 || (major == 5 && minor >= 10)
+}
+
 /// Undo what boot-patch adds to the ramdisk: the module, ksud's configs and the adb debug props
 /// (boot-patch itself drops those two unless --enable-adbd/--adb-debug-prop asks for them), and
 /// put the original init back.
@@ -1178,8 +1183,18 @@ mod tests {
     use android_bootimg::cpio::{Cpio, CpioEntry};
 
     use super::{
-        DEFAULT_BLOCK_MODULES, KSU_BLOCK_MODULES_CONFIG, block_modules_entry, remove_ksu_entries,
+        DEFAULT_BLOCK_MODULES, KSU_BLOCK_MODULES_CONFIG, block_modules_entry, is_gki_version,
+        remove_ksu_entries,
     };
+
+    #[test]
+    fn gki_versions() {
+        assert!(is_gki_version((6, 1, 2)));
+        assert!(is_gki_version((5, 10, 0)));
+        assert!(is_gki_version((6, 12, 30)));
+        assert!(!is_gki_version((5, 4, 200)));
+        assert!(!is_gki_version((4, 19, 191)));
+    }
 
     #[test]
     fn block_modules_list_to_write() {
