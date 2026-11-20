@@ -209,8 +209,11 @@ class DownloadService : Service() {
                     buildModuleCompletionNotification(id, target.name, uri),
                 )
             } catch (e: CancellationException) {
+                target.delete()
                 throw e
             } catch (e: Exception) {
+                // the target was a fresh name: drop the partial file
+                target.delete()
                 downloadRepository.markFailed(id, e.message ?: "Unknown error")
 
                 notificationManager.cancel(id)
@@ -324,8 +327,11 @@ class DownloadService : Service() {
                     buildApkCompletionNotification(id, target),
                 )
             } catch (e: CancellationException) {
+                target.delete()
                 throw e
             } catch (e: Exception) {
+                // the target was a fresh name: drop the partial file
+                target.delete()
                 downloadRepository.markFailed(id, e.message ?: "Unknown error")
 
                 notificationManager.cancel(id)
