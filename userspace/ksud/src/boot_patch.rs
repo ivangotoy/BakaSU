@@ -140,6 +140,8 @@ mod android {
         Ok(base16ct::lower::encode_string(&result))
     }
 
+    /// Opens `<backup>.tmp` for writing and returns it with the final backup path: the copy is
+    /// renamed over the final name only once it is complete.
     fn find_backup_location(sha1: &String) -> Result<(File, String)> {
         let filename = format!("{KSU_BACKUP_FILE_PREFIX}{sha1}");
         let target = format!("{KSU_BACKUP_DIR}{filename}");
@@ -147,7 +149,7 @@ mod android {
             .create(true)
             .truncate(true)
             .write(true)
-            .open(&target)
+            .open(format!("{target}.tmp"))
         {
             return Ok((target_file, target));
         }
@@ -165,7 +167,7 @@ mod android {
             .create(true)
             .truncate(true)
             .write(true)
-            .open(&backup_file)
+            .open(format!("{backup_file}.tmp"))
         {
             return Ok((file, backup_file));
         }
@@ -184,8 +186,15 @@ mod android {
             .write(false)
             .open(image)?;
 
-        std::io::copy(&mut source, &mut target_file)
-            .with_context(|| format!("backup to {target}"))?;
+        let tmp = format!("{target}.tmp");
+        if let Err(e) = std::io::copy(&mut source, &mut target_file)
+            .map(|_| ())
+            .and_then(|()| target_file.sync_all())
+            .and_then(|()| std::fs::rename(&tmp, &target))
+        {
+            let _ = std::fs::remove_file(&tmp);
+            return Err(e).with_context(|| format!("backup to {target}"));
+        }
 
         let backup_file = CpioEntry::regular(0o755, Box::new(sha1));
         cpio.add(BACKUP_FILENAME, backup_file)?;
