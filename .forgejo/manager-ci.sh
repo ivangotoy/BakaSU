@@ -10,8 +10,8 @@
 #   manager-ci.sh release <workdir>     forge token: draft release -> upload -> download back and
 #                                       compare sha256 -> push the merge to main -> publish
 #
-# Only arm64-v8a is built and released (ksud for one target, no LKM, no ksuinit: the kernel
-# has KernelSU built in). The release step runs this script as fetched from the dispatched
+# Only arm64-v8a is built and released (ksud for one target, no LKM, no ksuinit: for kernels
+# with KernelSU built in). The release step runs this script as fetched from the dispatched
 # commit, never the copy in the build workspace. A failure before publish deletes the draft.
 set -euo pipefail
 export GIT_HTTP_LOW_SPEED_LIMIT="${GIT_HTTP_LOW_SPEED_LIMIT:-1024}" GIT_HTTP_LOW_SPEED_TIME="${GIT_HTTP_LOW_SPEED_TIME:-60}"
@@ -223,9 +223,9 @@ trap cleanup EXIT
 
 [ "$(http_code "/releases/tags/$TAG")" = 404 ] || die "release $TAG exists (or the check failed)"
 [ "$(http_code "/tags/$TAG")" = 404 ] || die "tag $TAG exists (or the check failed)"
-BODY="$(printf 'BakaSU manager %s (versionCode %s, package %s, %s only)\nBuilt by manager-release #%s from %s\nUpstream merged: Baka-SU/BakaSU@%s %s\n\nAPK sha256: %s  %s\nSigning certificate sha256: %s\nKernelSU dynamic manager signature: size 0x%x hash %s' \
+BODY="$(printf 'BakaSU manager %s (versionCode %s, package %s, %s only)\nBuilt by manager-release #%s from %s\nUpstream merged: Baka-SU/BakaSU@%s %s\n\nAPK sha256: %s  %s\nSigning certificate sha256: %s\nKernelSU dynamic manager signature: size %s (0x%x) hash %s' \
     "$VERSION_NAME" "$VC" "$PKG" "$ABI" "$RUN_NUMBER" "$SRC_SHA" "$UPSTREAM_BRANCH" "$UP_SHA" \
-    "$APK_SHA" "$APK_NAME" "$CERT_SHA" "$CERT_SIZE" "$CERT_SHA")"
+    "$APK_SHA" "$APK_NAME" "$CERT_SHA" "$CERT_SIZE" "$CERT_SIZE" "$CERT_SHA")"
 REQ="$(python3 -I -c 'import json,sys;print(json.dumps({"tag_name":sys.argv[1],"target_commitish":"main","name":sys.argv[2],"body":sys.argv[3],"draft":True}))' "$TAG" "BakaSU $TAG" "$BODY")"
 RELEASE_ID="$(api POST /releases -H 'Content-Type: application/json' -d "$REQ" | jget id)"
 log "draft release $RELEASE_ID, uploading $APK_NAME"
