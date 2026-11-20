@@ -33,7 +33,7 @@ sha() { sha256sum "$1" | cut -d' ' -f1; }
 jget() { python3 -I -c 'import json,sys;d=json.load(sys.stdin)
 for k in sys.argv[1].split("."): d=d[int(k)] if k.isdigit() else d[k]
 print(d)' "$1"; }
-build_tool() { ls -d "${ANDROID_HOME:-/opt/android-sdk}"/build-tools/*/"$1" | sort -V | tail -n1; }
+build_tool() { printf '%s\n' "${ANDROID_HOME:-/opt/android-sdk}"/build-tools/*/"$1" | sort -V | tail -n1; }
 
 if [ "$MODE" = build-user ]; then
     cd "$WORK"
@@ -128,7 +128,7 @@ if [ "$MODE" = build ]; then
     (   keep=" PATH JAVA_HOME SIGN_KEYSTORE_B64 SIGN_KEY_ALIAS SIGN_STORE_PASSWORD SIGN_KEY_PASSWORD BASE_SHA GIT_HTTP_LOW_SPEED_LIMIT GIT_HTTP_LOW_SPEED_TIME "
         drop=()
         for v in $(compgen -e); do
-            case "$keep" in *" $v "*) ;; *) export -n "$v" 2>/dev/null || drop+=(-u "$v") ;; esac
+            case "$keep" in *" $v "*) ;; *) export -n "${v?}" 2>/dev/null || drop+=(-u "$v") ;; esac
         done
         while IFS= read -r -d '' e; do
             [[ "${e%%=*}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || drop+=(-u "${e%%=*}")
@@ -154,9 +154,9 @@ AUTH_H="$AUTH_DIR/header"
 (umask 077; printf 'Authorization: token %s\n' "$RELEASE_TOKEN" > "$AUTH_H")
 # only reads are retried: a retried POST/PATCH/DELETE can repeat a change the forge made
 api() {
-    local m="$1" p="$2" r=""; shift 2
-    case "$m" in GET|HEAD) r="--retry 3" ;; esac
-    curl -sS --connect-timeout 30 --max-time 600 --fail-with-body $r -X "$m" -H "@$AUTH_H" "$@" "$API$p"
+    local m="$1" p="$2" r=(); shift 2
+    case "$m" in GET|HEAD) r=(--retry 3) ;; esac
+    curl -sS --connect-timeout 30 --max-time 600 --fail-with-body ${r[@]+"${r[@]}"} -X "$m" -H "@$AUTH_H" "$@" "$API$p"
 }
 http_code() { curl -sS --connect-timeout 30 --max-time 600 -o /dev/null -w '%{http_code}' -H "@$AUTH_H" "$API$1"; }
 git_auth() {
@@ -169,7 +169,8 @@ REL="$(pwd)/rel"
 rm -rf "$REL"; mkdir -p "$REL"
 git_auth clone -q --no-tags --branch main "$SERVER_URL/$REPOSITORY.git" "$REL/repo"
 cd "$REL/repo"
-git cat-file -e "$BASE_SHA^{commit}" && git merge-base --is-ancestor "$BASE_SHA" HEAD || die "base $BASE_SHA not in main"
+git cat-file -e "$BASE_SHA^{commit}" || die "base $BASE_SHA not in main"
+git merge-base --is-ancestor "$BASE_SHA" HEAD || die "base $BASE_SHA not in main"
 
 # build results are data owned by the build user: regular files only, checked before use
 regular() { [ -f "$1" ] && [ ! -L "$1" ] || die "$1 is not a regular file"; }

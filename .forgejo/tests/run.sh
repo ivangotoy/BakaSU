@@ -251,6 +251,8 @@ check "release: merge pushed to main" 'main_is ok-merge "$M"'
 read -r csize csha < "$W/a735.want"
 check "release: body carries the kernel signature size and hash" 'rel body | grep -qF "size $csize (0x2df) hash $csha"'
 check "release: curl reads the token from a header file" 'grep -q "^curl .* -H @" "$W/r/ok-merge/argv"'
+check "release: reads are retried, writes are not" \
+    'grep -q "^curl .* --retry 3 -X GET " "$W/r/ok-merge/argv" && ! grep -qE "^curl .* --retry .* -X (POST|PATCH|DELETE) " "$W/r/ok-merge/argv"'
 
 rcase ok-nomerge "$B" "$U0" "$W/a1024.apk" - FAKE_VERSION_NAME='v4.2.0 beta/x'
 check "release: no-merge build publishes at BASE; 1024-byte cert accepted" 'ok ok-nomerge && main_is ok-nomerge "$B"'
