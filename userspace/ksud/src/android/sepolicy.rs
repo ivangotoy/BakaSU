@@ -369,9 +369,14 @@ where
 {
     let mut statements = vec![];
 
-    for line in input.split(['\n', ';']) {
+    // a '#' comments out the rest of its line, including statements after a ';'
+    for line in input.lines().flat_map(|line| {
+        line.split_once('#')
+            .map_or(line, |(code, _)| code)
+            .split(';')
+    }) {
         let trimmed_line = line.trim();
-        if trimmed_line.is_empty() || trimmed_line.starts_with('#') {
+        if trimmed_line.is_empty() {
             continue;
         }
         if let Ok((_, statement)) = PolicyStatement::parse(trimmed_line) {
