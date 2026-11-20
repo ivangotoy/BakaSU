@@ -2376,7 +2376,8 @@ fn apply_bootstrap_relocation(
             let target = u64::try_from(value).context("ADD relocation overflow")?;
             let instruction = read_u32(output, output_offset)?;
             ensure!(
-                instruction & 0x7f40_0000 == 0x1100_0000,
+                // bits 30..22: ADD (not ADDG/SUBG, bit 23) immediate, unshifted (bit 22)
+                instruction & 0x7fc0_0000 == 0x1100_0000,
                 "ADD relocation does not target an unshifted ADD-immediate instruction"
             );
             let immediate = u32::try_from((target & 0xfff) << 10)?;
@@ -3005,6 +3006,20 @@ mod tests {
         write_u64(&mut image, ARM64_IMAGE_SIZE_OFFSET, 0x20_0000).unwrap();
         write_u64(&mut image, 0x18, 0xa).unwrap();
         assert_eq!(parse_arm64_image_size(&image).unwrap(), 0x20_0000);
+    }
+
+    #[test]
+    fn add_lo12_relocation_targets_only_add_immediate() {
+        // ADD x0, x0, #0 gets the low 12 bits of the target
+        let mut code = 0x9100_0000_u32.to_le_bytes().to_vec();
+        apply_bootstrap_relocation(&mut code, 0, 0, R_AARCH64_ADD_ABS_LO12_NC, 0x1123, 0).unwrap();
+        assert_eq!(read_u32(&code, 0).unwrap(), 0x9100_0000 | (0x123 << 10));
+        // ADDG x0, x0, #0, #0 (MTE) must not be rewritten
+        let mut code = 0x9180_0000_u32.to_le_bytes().to_vec();
+        assert!(
+            apply_bootstrap_relocation(&mut code, 0, 0, R_AARCH64_ADD_ABS_LO12_NC, 0x1123, 0)
+                .is_err()
+        );
     }
 
     #[test]
