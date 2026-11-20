@@ -383,6 +383,8 @@ where
             statements.push(statement);
         } else if strict {
             bail!("Failed to parse policy statement: {line}")
+        } else {
+            log::warn!("sepolicy statement not understood, skipped: {trimmed_line}");
         }
     }
     Ok(statements)
