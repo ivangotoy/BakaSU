@@ -5,7 +5,7 @@ use derive_new::new;
 use nom::{
     AsChar, IResult, Parser,
     branch::alt,
-    bytes::complete::{tag, take_while, take_while_m_n, take_while1},
+    bytes::complete::{tag, take_while, take_while1},
     character::complete::{space0, space1},
     combinator::map,
 };
@@ -25,7 +25,7 @@ fn parse_single_word(input: &str) -> IResult<&str, &str> {
 fn parse_bracket_objs(input: &str) -> IResult<&str, SeObject<'_>> {
     let (input, (_, words, _)) = (
         tag("{"),
-        take_while_m_n(1, 100, |c: char| is_sepolicy_char(c) || c.is_whitespace()),
+        take_while1(|c: char| is_sepolicy_char(c) || c.is_whitespace()),
         tag("}"),
     )
         .parse(input)?;
@@ -37,6 +37,36 @@ fn parse_bracket_objs(input: &str) -> IResult<&str, SeObject<'_>> {
         )));
     }
     Ok((input, objs))
+}
+
+// genfscon path: an absolute path ("/proc/foo")
+fn parse_genfs_path(input: &str) -> IResult<&str, &str> {
+    let (rest, path) = take_while1(|c: char| !c.is_whitespace()).parse(input)?;
+    if !path.starts_with('/') {
+        return Err(nom::Err::Error(nom::error::Error::new(
+            input,
+            nom::error::ErrorKind::Verify,
+        )));
+    }
+    Ok((rest, path))
+}
+
+// security context, e.g. u:object_r:proc_foo:s0 or ...:s0:c1,c2
+fn parse_context(input: &str) -> IResult<&str, &str> {
+    take_while1(|c: char| is_sepolicy_char(c) || c == ':' || c == ',' || c == '.').parse(input)
+}
+
+// type_transition object name: a word, or "a name" in double quotes (returned without them)
+fn parse_object_name(input: &str) -> IResult<&str, &str> {
+    alt((
+        |input| {
+            let (input, (_, name, _)) =
+                (tag("\""), take_while1(|c: char| c != '"'), tag("\"")).parse(input)?;
+            Ok((input, name))
+        },
+        parse_single_word,
+    ))
+    .parse(input)
 }
 
 fn parse_single_obj(input: &str) -> IResult<&str, SeObject<'_>> {
@@ -300,7 +330,7 @@ impl<'a> SeObjectParser<'a> for TypeTransition<'a> {
         }
 
         let (input, _) = space1(input)?;
-        let (input, object) = parse_single_word(input)?;
+        let (input, object) = parse_object_name(input)?;
 
         Ok((
             input,
@@ -334,9 +364,9 @@ impl<'a> SeObjectParser<'a> for GenFsCon<'a> {
         let (input, _) = space1(input)?;
         let (input, fs) = parse_single_word(input)?;
         let (input, _) = space1(input)?;
-        let (input, path) = parse_single_word(input)?;
+        let (input, path) = parse_genfs_path(input)?;
         let (input, _) = space1(input)?;
-        let (input, context) = parse_single_word(input)?;
+        let (input, context) = parse_context(input)?;
         Ok((input, GenFsCon::new(fs, path, context)))
     }
 }
