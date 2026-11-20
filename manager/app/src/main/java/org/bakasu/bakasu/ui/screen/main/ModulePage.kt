@@ -1015,7 +1015,7 @@ private fun ModuleList(
                                     module,
                                     module.moduleUpdate!!.changelog,
                                     module.moduleUpdate.zipUrl,
-                                    "${module.name}-${module.moduleUpdate.version}.zip",
+                                    "${module.name.replace('/', '_')}-${module.moduleUpdate.version}.zip",
                                 )
                             }
                         }
