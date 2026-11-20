@@ -283,13 +283,7 @@ pub fn uninstall(package_name: &str) -> Result<()> {
         module::uninstall_all_modules()?;
         module::prune_modules()?;
     }
-    println!("- Removing directories..");
-    std::fs::remove_dir_all(defs::WORKING_DIR).ok();
-    std::fs::remove_file(defs::DAEMON_PATH).ok();
-    std::fs::remove_dir_all(defs::MODULE_DIR).ok();
-    std::fs::remove_dir_all(defs::PREINIT_DIR_VOLD).ok();
-    std::fs::remove_dir_all(defs::PREINIT_DIR_WATCHDOG).ok();
-    std::fs::remove_dir_all(defs::PREINIT_DIR_DEFAULT).ok();
+    // restore first: the stock boot backup lives in WORKING_DIR
     println!("- Restore boot image..");
     boot_patch::restore(BootRestoreArgs {
         boot: None,
@@ -297,6 +291,13 @@ pub fn uninstall(package_name: &str) -> Result<()> {
         out_name: None,
         out: None,
     })?;
+    println!("- Removing directories..");
+    std::fs::remove_dir_all(defs::WORKING_DIR).ok();
+    std::fs::remove_file(defs::DAEMON_PATH).ok();
+    std::fs::remove_dir_all(defs::MODULE_DIR).ok();
+    std::fs::remove_dir_all(defs::PREINIT_DIR_VOLD).ok();
+    std::fs::remove_dir_all(defs::PREINIT_DIR_WATCHDOG).ok();
+    std::fs::remove_dir_all(defs::PREINIT_DIR_DEFAULT).ok();
     println!("- Uninstall KernelSU manager..");
     Command::new("pm")
         .args(["uninstall", package_name])
