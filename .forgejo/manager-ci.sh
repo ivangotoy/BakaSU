@@ -53,6 +53,8 @@ if [ "$MODE" = build-user ]; then
     log "merging $UPSTREAM_URL $UPSTREAM_BRANCH"
     git fetch -q --no-tags "$UPSTREAM_URL" "+refs/heads/$UPSTREAM_BRANCH:refs/ci/upstream" "+refs/tags/*:refs/tags/*"
     UP_SHA="$(git rev-parse refs/ci/upstream)"
+    # fork release tags (<version>-ciN) must never become the next versionName
+    git tag -l '*-ci[0-9]*' | xargs -r git tag -d >/dev/null
     if git merge-base --is-ancestor "$UP_SHA" HEAD; then
         log "upstream $UP_SHA already merged"
     else
@@ -200,7 +202,7 @@ read -r CERT_SIZE CERT_SHA < <(python3 -I "$AUTH_DIR/apk-cert.py" "$APK_SRC")
 # kernel/manager/apk_sign.c rejects a signing certificate larger than CERT_MAX_LENGTH (1024)
 [ "$CERT_SIZE" -le 1024 ] || die "signing certificate is $CERT_SIZE bytes; the kernel accepts at most 1024"
 APK_SHA="$(sha "$APK_SRC")"
-TAG="$(printf '%s-ci%s' "$VERSION_NAME" "$RUN_NUMBER" | sed -E 's/[^A-Za-z0-9._-]+/-/g')"
+TAG="$(printf '%s-ci%s' "${VERSION_NAME%%-ci[0-9]*}" "$RUN_NUMBER" | sed -E 's/[^A-Za-z0-9._-]+/-/g')"
 APK_NAME="BakaSU-$TAG-$ABI.apk"
 mv "$APK_SRC" "$REL/$APK_NAME"; APK="$REL/$APK_NAME"
 log "version $VERSION_NAME versionCode $VC tag $TAG cert size $CERT_SIZE sha256 $CERT_SHA"
