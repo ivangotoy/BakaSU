@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fs, io::Write, path::Path};
 
 use anyhow::Result;
-use log::info;
+use log::{info, warn};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -41,7 +41,11 @@ pub fn load_umount_config() -> Result<()> {
     let mut count = 0;
 
     for (path, flags) in json_raw.paths {
-        ksucalls::umount_list_add(path.as_str(), flags)?;
+        // one refused entry must not keep the others out of the umount list
+        if let Err(e) = ksucalls::umount_list_add(path.as_str(), flags) {
+            warn!("umount entry {path} not added: {e}");
+            continue;
+        }
         count += 1;
     }
     info!("Loaded {count} umount entries from config");
