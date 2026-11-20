@@ -7,6 +7,19 @@ use crate::{
     defs,
 };
 
+/// Replace `path` atomically (temp file + rename): boot re-applies the policy files and the
+/// manager reads the templates back, so an interrupted write must not leave a truncated file.
+/// The temp file lives outside the listed directories (same file system).
+fn write_replace(path: &Path, content: &str) -> Result<()> {
+    let tmp = Path::new(defs::WORKING_DIR).join(".profile_write.tmp");
+    std::fs::write(&tmp, content)
+        .and_then(|()| std::fs::rename(&tmp, path))
+        .inspect_err(|_| {
+            let _ = std::fs::remove_file(&tmp);
+        })?;
+    Ok(())
+}
+
 /// `name` (a package name or template id from the command line) as a file directly in `dir`
 fn file_in(dir: &str, name: &str) -> Result<std::path::PathBuf> {
     if name.is_empty() || name == "." || name == ".." || name.contains('/') {
@@ -18,7 +31,7 @@ fn file_in(dir: &str, name: &str) -> Result<std::path::PathBuf> {
 pub fn set_sepolicy(pkg: String, policy: String) -> Result<()> {
     ensure_dir_exists(defs::PROFILE_SELINUX_DIR)?;
     let policy_file = file_in(defs::PROFILE_SELINUX_DIR, &pkg)?;
-    std::fs::write(&policy_file, policy)?;
+    write_replace(&policy_file, &policy)?;
     sepolicy::apply_file(&policy_file)?;
     Ok(())
 }
@@ -34,7 +47,7 @@ pub fn get_sepolicy(pkg: String) -> Result<()> {
 pub fn set_template(id: String, template: String) -> Result<()> {
     ensure_dir_exists(defs::PROFILE_TEMPLATE_DIR)?;
     let template_file = file_in(defs::PROFILE_TEMPLATE_DIR, &id)?;
-    std::fs::write(template_file, template)?;
+    write_replace(&template_file, &template)?;
     Ok(())
 }
 
