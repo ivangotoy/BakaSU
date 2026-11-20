@@ -94,12 +94,16 @@ pub fn ensure_binary<T: AsRef<Path>>(
         return Ok(());
     }
 
-    ensure_dir_exists(path.as_ref().parent().ok_or_else(|| {
+    let parent = path.as_ref().parent().ok_or_else(|| {
         anyhow::anyhow!(
             "{} does not have parent directory",
             path.as_ref().to_string_lossy()
         )
-    })?)?;
+    })?;
+    // a bare file name has an empty parent: the current directory
+    if !parent.as_os_str().is_empty() {
+        ensure_dir_exists(parent)?;
+    }
 
     if let Err(e) = remove_file(path.as_ref())
         && e.kind() != NotFound
