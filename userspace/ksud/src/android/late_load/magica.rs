@@ -67,12 +67,32 @@ fn enable_adb_root(port: u16) -> Result<()> {
     )?;
 
     // Set properties via internal API
-    rp.set("ro.debuggable", "1")
-        .context("Failed to set ro.debuggable")?;
-    info!("Executing: resetprop -n ro.debuggable 1");
-    rp.set("ro.adb.secure", "0")
-        .context("Failed to set ro.adb.secure")?;
-    info!("Executing: resetprop -n ro.adb.secure 0");
+    let mut debuggable_set = false;
+    let set = (|| -> Result<()> {
+        rp.set("ro.debuggable", "1")
+            .context("Failed to set ro.debuggable")?;
+        debuggable_set = true;
+        info!("Executing: resetprop -n ro.debuggable 1");
+        rp.set("ro.adb.secure", "0")
+            .context("Failed to set ro.adb.secure")?;
+        info!("Executing: resetprop -n ro.adb.secure 0");
+        Ok(())
+    })();
+    if let Err(e) = set {
+        // do not leave ro.debuggable set or the property files writable
+        if debuggable_set {
+            let _ = rp.set("ro.debuggable", "0");
+        }
+        let _ = exec_shell_commands(
+            &[
+                ("chmod", &["0444", props_serial]),
+                ("chmod", &["0444", &debuggable_context]),
+                ("chmod", &["0444", &adb_secure_context]),
+            ],
+            "Restoring",
+        );
+        return Err(e);
+    }
 
     // Restore permissions and restart adbd
     exec_shell_commands(
