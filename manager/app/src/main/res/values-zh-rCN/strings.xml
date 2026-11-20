@@ -191,6 +191,7 @@
     <string name="settings_flash_card_background_summary">在刷写日志下方绘制卡片背景；启用自定义背景时强制开启</string>
     <string name="save_log">保存日志</string>
     <string name="log_saved">日志已保存</string>
+    <string name="log_save_failed">创建日志失败</string>
     <string name="unknown_module">未知模块</string>
     <string name="confirm">确定</string>
     <string name="cancel">取消</string>

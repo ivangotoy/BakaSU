@@ -200,6 +200,7 @@
     <string name="settings_flash_card_background_summary">Draw a card background behind the flashing log. Always on while a custom background is set</string>
     <string name="save_log">Save logs</string>
     <string name="log_saved">Logs saved</string>
+    <string name="log_save_failed">Failed to create the logs</string>
     <string name="unknown_module">Unknown module</string>
     <string name="confirm">Confirm</string>
     <string name="cancel">Cancel</string>

@@ -7,6 +7,7 @@ import androidx.core.content.pm.PackageInfoCompat
 import com.topjohnwu.superuser.ShellUtils
 import java.io.File
 import java.io.FileWriter
+import java.io.IOException
 import java.io.PrintWriter
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -117,9 +118,10 @@ fun getBugreportFile(context: Context, ksuCliRepository: KsuCliRepository): File
 
     val targetFile = File(context.cacheDir, "KernelSU_bugreport_$current.tar.gz")
 
-    shell.newJob().add("tar czf ${targetFile.absolutePath} -C ${bugreportDir.absolutePath} .").exec()
+    val tar = shell.newJob().add("tar czf ${targetFile.absolutePath} -C ${bugreportDir.absolutePath} .").exec()
     shell.newJob().add("rm -rf ${bugreportDir.absolutePath}").exec()
     shell.newJob().add("chmod 0644 ${targetFile.absolutePath}").exec()
+    if (!tar.isSuccess || !targetFile.isFile) throw IOException("bugreport archive was not created")
 
     return targetFile
 }
