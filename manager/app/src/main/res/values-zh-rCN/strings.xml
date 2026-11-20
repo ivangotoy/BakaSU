@@ -450,6 +450,7 @@
     <string name="notification_permission_denied">下载失败，缺失通知权限</string>
     <string name="storage_permission_description">需要外部存储权限来展示下载进度。</string>
     <string name="storage_permission_denied">下载失败，缺失外部存储权限</string>
+    <string name="local_network_permission_description">需要本地网络权限才能从本地网络主机检查模块更新。</string>
     <string name="susfs_tab_status">状态</string>
     <string name="susfs_tab_standard">一般</string>
     <string name="susfs_tab_sus_path">隐藏路径</string>
