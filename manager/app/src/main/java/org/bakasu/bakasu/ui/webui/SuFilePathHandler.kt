@@ -123,7 +123,13 @@ class SuFilePathHandler(
                     inputStream.close()
                     throw e
                 }
-                return WebResourceResponse(mimeType, null, body)
+                return WebResourceResponse(mimeType, null, body).apply {
+                    // the ksu bridges reach every frame: pages may frame only their own origin
+                    // and blob:/data: documents, which hold content the page created itself
+                    if (mimeType == "text/html" || mimeType == "application/xhtml+xml") {
+                        responseHeaders = mapOf("Content-Security-Policy" to "frame-src 'self' blob: data:")
+                    }
+                }
             } else {
                 Log.e(
                     TAG,
