@@ -143,7 +143,7 @@ ccflags-y += -DKSU_HAS_ITERATE_DIR
 endif
 
 # UL, look for modern alloc_uid on include/linux/sched.h
-ifeq ($(shell grep -q "alloc_uid.kuid_t" $(srctree)/include/linux/sched.c 2>/dev/null; echo $$?),0)
+ifeq ($(shell grep -q "alloc_uid.kuid_t" $(srctree)/include/linux/sched.h 2>/dev/null; echo $$?),0)
 $(info -- $(REPO_NAME)/compat: modern alloc_Uid found)
 ccflags-y += -DKSU_HAS_MODERN_ALLOC_UID
 endif
