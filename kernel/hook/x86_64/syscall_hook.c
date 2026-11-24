@@ -258,8 +258,15 @@ static __always_inline bool my_do_syscall_x64(struct pt_regs *regs, int nr)
     return false;
 }
 
+// Before 5.12 the kernel entry calls do_syscall_64(unsigned long nr, struct pt_regs *regs)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 12, 0)
+static void __nocfi my_do_syscall_64(unsigned long unr, struct pt_regs *regs)
+{
+    int nr = unr;
+#else
 static void __nocfi my_do_syscall_64(struct pt_regs *regs, int nr)
 {
+#endif
     nr = syscall_enter_from_user_mode_fn(regs, nr);
     // Pick up the tracepoint's nr rewrite unless the syscall is skipped (-1, e.g. seccomp)
     if (nr != -1)
