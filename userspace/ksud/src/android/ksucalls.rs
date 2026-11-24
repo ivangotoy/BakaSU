@@ -555,6 +555,11 @@ pub fn umount_list_list() -> anyhow::Result<Vec<MountInfo>> {
             .context("Malformed buffer: missing null terminator")?;
 
         let end_str = cursor + null_pos;
+        // the kernel never stores an empty path: an empty one is the zeroed tail of a list that
+        // shrank between GETSIZE and GETLIST
+        if null_pos == 0 {
+            break;
+        }
 
         let path = String::from_utf8_lossy(&buffer[cursor..end_str]).into_owned();
 
