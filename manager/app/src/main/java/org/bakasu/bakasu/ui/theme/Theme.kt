@@ -315,23 +315,26 @@ class BackgroundManager(
     }
 
     private fun copyImageToInternalStorage(context: Context, uri: Uri): Uri? {
+        // copied to a temp file first: a failed read keeps the current background intact
+        val file = File(context.filesDir, "custom_background.jpg")
+        val temp = File(context.filesDir, "custom_background.jpg.tmp")
         return try {
             val inputStream = context.contentResolver.openInputStream(uri) ?: return null
-            val fileName = "custom_background.jpg"
-            val file = File(context.filesDir, fileName)
-
-            FileOutputStream(file).use { outputStream ->
-                val buffer = ByteArray(8 * 1024)
-                var read: Int
-                while (inputStream.read(buffer).also { read = it } != -1) {
-                    outputStream.write(buffer, 0, read)
+            inputStream.use { input ->
+                FileOutputStream(temp).use { outputStream ->
+                    val buffer = ByteArray(8 * 1024)
+                    var read: Int
+                    while (input.read(buffer).also { read = it } != -1) {
+                        outputStream.write(buffer, 0, read)
+                    }
+                    outputStream.flush()
                 }
-                outputStream.flush()
             }
-            inputStream.close()
+            if (!temp.renameTo(file)) throw java.io.IOException("cannot replace $file")
 
             Uri.fromFile(file)
         } catch (e: Exception) {
+            temp.delete()
             Log.e(tag, "复制图片失败: ${e.message}", e)
             null
         }

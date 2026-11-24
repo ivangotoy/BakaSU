@@ -221,11 +221,14 @@ fun ThemeSettingsScreen(
 
     val launchExternalCrop = { sourceUri: Uri ->
         val uri = createBackgroundCropOutputUri(context, "background_crop_external")
-        context.contentResolver.openInputStream(sourceUri)?.use { inputStream ->
-            context.contentResolver.openOutputStream(uri)?.use { outputStream ->
-                inputStream.copyTo(outputStream)
+        // a provider that fails here falls back to the in-app crop below instead of crashing
+        val copied = runCatching {
+            context.contentResolver.openInputStream(sourceUri)?.use { inputStream ->
+                context.contentResolver.openOutputStream(uri)?.use { outputStream ->
+                    inputStream.copyTo(outputStream)
+                }
             }
-        }
+        }.isSuccess
 
         val (screenWidth, screenHeight) = context.backgroundCropSize()
         val intent = Intent("com.android.camera.action.CROP").apply {
@@ -242,6 +245,7 @@ fun ThemeSettingsScreen(
         }
 
         try {
+            check(copied) { "cannot copy the picked image" }
             pendingExternalCropOutputUri = uri
             externalCropLauncher.launch(intent)
         } catch (t: Throwable) {
