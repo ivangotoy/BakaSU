@@ -456,7 +456,7 @@ void ksu_handle_rename(struct dentry *old_dentry, struct dentry *new_dentry)
                 return;
             kfree(cb);
         }
-        return;
+        // could not defer: fall back to the synchronous scan below
     }
 #endif
     // after renameat hook, packages.list.tmp -> packages.list
