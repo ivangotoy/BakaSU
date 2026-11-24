@@ -149,7 +149,7 @@ static int do_get_info_legacy(void __user *arg)
 
 static int do_report_event(void __user *arg)
 {
-    static bool services_started = false;
+    static atomic_t services_started = ATOMIC_INIT(0);
     struct ksu_report_event_cmd cmd;
 
     if (copy_from_user(&cmd, arg, sizeof(cmd))) {
@@ -158,12 +158,11 @@ static int do_report_event(void __user *arg)
 
     switch (cmd.event) {
     case EVENT_POST_FS_DATA: {
-        static bool post_fs_data_lock = false;
+        static atomic_t post_fs_data_lock = ATOMIC_INIT(0);
 
         // Reset for emulated soft reboot
-        services_started = false;
-        if (!post_fs_data_lock) {
-            post_fs_data_lock = true;
+        atomic_set(&services_started, 0);
+        if (!atomic_xchg(&post_fs_data_lock, 1)) {
             if (ksu_late_loaded) {
                 pr_info("post-fs-data skipped (late load)\n");
             } else {
@@ -174,9 +173,8 @@ static int do_report_event(void __user *arg)
         break;
     }
     case EVENT_BOOT_COMPLETED: {
-        static bool boot_complete_lock = false;
-        if (!boot_complete_lock) {
-            boot_complete_lock = true;
+        static atomic_t boot_complete_lock = ATOMIC_INIT(0);
+        if (!atomic_xchg(&boot_complete_lock, 1)) {
             if (ksu_late_loaded) {
                 pr_info("boot_complete skipped (late load)\n");
             } else {
@@ -195,11 +193,10 @@ static int do_report_event(void __user *arg)
         break;
     }
     case EVENT_SERVICES: {
-        if (services_started) {
+        if (atomic_xchg(&services_started, 1)) {
             pr_info("services already started, skipping\n");
             return 0;
         }
-        services_started = true;
         pr_info("services triggered\n");
         return 1;
     }
