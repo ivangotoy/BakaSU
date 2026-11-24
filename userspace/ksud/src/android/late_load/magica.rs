@@ -191,8 +191,9 @@ pub fn run(port: u16, package_name: &String, allow_shell: bool) -> Result<()> {
     // 1. Load kernelsu.ko, enforce SELinux, run stage scripts
     // 2. Restore adb properties (disable adb root/tcp mode)
     let allow_shell_arg = if allow_shell { " --allow-shell" } else { "" };
+    // adb shell reports no exit status: the remote shell prints it after the command
     let cmd = format!(
-        "{} late-load --post-magica --package-name {}{}",
+        "{} late-load --post-magica --package-name {}{}; echo {EXIT_MARKER}$?",
         self_path.display(),
         package_name,
         allow_shell_arg
@@ -200,7 +201,8 @@ pub fn run(port: u16, package_name: &String, allow_shell: bool) -> Result<()> {
     info!("Executing '{cmd}' via adb shell...");
     let mut stdout = Vec::new();
     let mut stderr = Vec::new();
-    if let Err(e) = device.shell_command(&cmd, Some(&mut stdout), Some(&mut stderr)) {
+    let shell = device.shell_command(&cmd, Some(&mut stdout), Some(&mut stderr));
+    if let Err(e) = &shell {
         info!("adb shell finished with error (may be expected): {e}");
     }
     if !stdout.is_empty() {
@@ -210,5 +212,25 @@ pub fn run(port: u16, package_name: &String, allow_shell: bool) -> Result<()> {
         info!("stderr: {}", String::from_utf8_lossy(&stderr));
     }
 
-    Ok(())
+    // the post-magica child restores the adb props; when it did not start, do it here
+    match post_magica_status(&String::from_utf8_lossy(&stdout)) {
+        Some(0) => Ok(()),
+        // the connection may drop when the child restarts adbd: its status is then unknown
+        None if shell.is_err() => Ok(()),
+        status => {
+            restore_adb_props();
+            bail!("late-load --post-magica did not start (exit status {status:?})")
+        }
+    }
+}
+
+const EXIT_MARKER: &str = "ksud-post-magica-exit:";
+
+/// Exit status printed by the remote shell after `late-load --post-magica`, if any.
+fn post_magica_status(stdout: &str) -> Option<i32> {
+    stdout
+        .lines()
+        .rev()
+        .find_map(|line| line.trim().strip_prefix(EXIT_MARKER))
+        .and_then(|code| code.parse().ok())
 }
