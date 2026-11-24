@@ -4,7 +4,7 @@ define check_symbol_export
   $(eval _ARG3 := $(strip $(3)))
   $(eval _ARG4 := $(strip $(4)))
 
-  ifneq ($$(shell grep -q -F "$$(_ARG1)" $$(_ARG2); echo $$$$?),0)
+  ifeq ($$(shell grep -q -F "$$(_ARG1)" $$(_ARG2); echo $$$$?),1)
       $$(info -- $$(REPO_NAME)/symbol_export: export $$(_ARG3) found)
   else
       $$(info -- You disabled CONFIG_KALLSYMS_ALL and haven't export $$(_ARG3) in your kernel's $$(notdir $$(_ARG2)) file)
