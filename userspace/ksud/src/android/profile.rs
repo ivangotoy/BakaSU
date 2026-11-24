@@ -14,7 +14,7 @@ fn write_replace(path: &Path, content: &str) -> Result<()> {
     // per process: concurrent writers of different targets must not share a temp file
     let tmp =
         Path::new(defs::WORKING_DIR).join(format!(".profile_write.{}.tmp", std::process::id()));
-    std::fs::write(&tmp, content)
+    crate::android::utils::write_synced(&tmp, content.as_bytes())
         .and_then(|()| std::fs::rename(&tmp, path))
         .inspect_err(|_| {
             let _ = std::fs::remove_file(&tmp);

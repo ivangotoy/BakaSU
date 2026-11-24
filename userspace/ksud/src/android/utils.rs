@@ -76,6 +76,15 @@ pub fn ensure_file_exists<T: AsRef<Path>>(file: T) -> Result<()> {
     }
 }
 
+/// Write `data` to `path` and flush it to disk (for a temp file that is renamed over a state file
+/// afterwards: the rename must not publish an empty file after a power loss).
+pub fn write_synced<P: AsRef<Path>>(path: P, data: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
+    let mut file = File::create(path)?;
+    file.write_all(data)?;
+    file.sync_all()
+}
+
 pub fn ensure_dir_exists<T: AsRef<Path>>(dir: T) -> Result<()> {
     let result = create_dir_all(&dir);
     if dir.as_ref().is_dir() && result.is_ok() {

@@ -76,8 +76,9 @@ pub fn set(size: u32, hash: [u8; 64]) -> Result<()> {
 /// Persist only what the kernel accepted (booted_load re-applies the file at every boot), and
 /// replace the file atomically: a truncated file would lose the manager at the next boot.
 fn write_config(content: &str) -> Result<()> {
-    let tmp = format!("{}.tmp", defs::DYNAMIC_MANAGER);
-    fs::write(&tmp, content)
+    // per process, and on disk before the rename: a power loss must not leave an empty file
+    let tmp = format!("{}.{}.tmp", defs::DYNAMIC_MANAGER, std::process::id());
+    crate::android::utils::write_synced(&tmp, content.as_bytes())
         .and_then(|()| fs::rename(&tmp, defs::DYNAMIC_MANAGER))
         .inspect_err(|_| {
             let _ = fs::remove_file(&tmp);
