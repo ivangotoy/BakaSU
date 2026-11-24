@@ -371,7 +371,8 @@ rm -f /data/adb/post-fs-data.d/post_ota.sh
         // complete and executable before it appears in post-fs-data.d (the temp file sits outside
         // it, so a half-written copy is never run)
         let tmp = Path::new(ADB_DIR).join(".post_ota.sh.tmp");
-        let written = std::fs::write(&tmp, sh_content)
+        // synced before the rename: an empty script would never mark the new slot successful
+        let written = crate::android::utils::write_synced(&tmp, sh_content.as_bytes())
             .and_then(|()| std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o755)))
             .and_then(|()| std::fs::rename(&tmp, &post_ota_sh));
         if let Err(e) = written {
