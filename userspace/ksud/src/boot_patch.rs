@@ -1227,9 +1227,11 @@ fn rebuild_without_ksu(
 }
 
 /// Write an output image; a failed (e.g. short) write removes the partial file instead of
-/// leaving a truncated image under the final name.
+/// leaving a truncated image under the final name. A file that cannot be opened is left alone.
 fn write_output_image(path: &std::path::Path, data: &[u8]) -> std::io::Result<()> {
-    std::fs::write(path, data).inspect_err(|_| {
+    use std::io::Write;
+    let mut file = File::create(path)?;
+    file.write_all(data).inspect_err(|_| {
         let _ = std::fs::remove_file(path);
     })
 }
@@ -1280,6 +1282,23 @@ mod tests {
         );
         assert_eq!(block_modules_entry(Some(String::new()), Some(b"a")), "");
         assert_eq!(block_modules_entry(Some("x".into()), Some(b"a")), "x");
+    }
+
+    #[test]
+    fn output_image_that_cannot_be_opened_is_kept() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("kernelsu_patched.img");
+        std::fs::write(&path, b"earlier image").unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o444)).unwrap();
+        if super::write_output_image(&path, b"new").is_ok() {
+            // running as root: the read-only mode does not stop the open
+            return;
+        }
+        assert_eq!(std::fs::read(&path).unwrap(), b"earlier image");
+        let new = dir.path().join("new.img");
+        super::write_output_image(&new, b"new image").unwrap();
+        assert_eq!(std::fs::read(&new).unwrap(), b"new image");
     }
 
     #[test]
