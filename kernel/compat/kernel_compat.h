@@ -520,7 +520,12 @@ static void __user *userspace_stack_buffer(const void *d, size_t len)
 {
     // To avoid having to mmap a page in userspace, just write below the stack
     // pointer.
+#ifdef __x86_64__
+    // skip the 128-byte red zone of the x86_64 SysV ABI
+    char __user *p = (void __user *)current_user_stack_pointer() - 128 - len;
+#else
     char __user *p = (void __user *)current_user_stack_pointer() - len;
+#endif
 
     return copy_to_user(p, d, len) ? NULL : p;
 }
