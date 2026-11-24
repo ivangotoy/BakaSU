@@ -34,8 +34,7 @@ class RandomAccessFileInterface {
     @JavascriptInterface
     fun readBytes(id: String, len: Int): String = runCatching {
         val raf = openFiles[id] ?: return ""
-        // len comes from the page: read at most one chunk per call, as FileInputStream does
-        val buffer = ByteArray(len.coerceIn(0, ManagedInputStream.MAX_CHUNK_SIZE))
+        val buffer = ByteArray(len)
         val bytesRead = synchronized(raf) { raf.read(buffer) }
         if (bytesRead > 0) {
             Base64.encodeToString(buffer, 0, bytesRead, Base64.NO_WRAP)
