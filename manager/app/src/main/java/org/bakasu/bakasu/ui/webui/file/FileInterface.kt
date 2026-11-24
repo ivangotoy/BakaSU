@@ -160,5 +160,6 @@ class FileInterface(private val path: String, private val io: KsuIO) {
     @JavascriptInterface
     fun newOutputStream(): String = newOutputStream(false)
 
+    @JavascriptInterface
     override fun toString(): String = path
 }
