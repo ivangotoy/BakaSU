@@ -16,15 +16,14 @@
 #endif
 #include "arch.h"
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
+// arm32 has no syscall wrappers: sys_* take C arguments on every version
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0) && !defined(__arm__)
 #if defined(__aarch64__)
 #define KSU_SYS_PREFIX(name) __arm64_sys_##name
 #elif defined(__x86_64__)
 #define KSU_SYS_PREFIX(name) __x64_sys_##name
 #elif defined(__riscv)
 #define KSU_SYS_PREFIX(name) __riscv_sys_##name
-#elif defined(__arm__)
-#define KSU_SYS_PREFIX(name) sys_##name
 #else // wire up your arch here.
 static_assert(1 == 0, "Unsupported architecture!");
 #define KSU_SYS_PREFIX(name) sys_##name
