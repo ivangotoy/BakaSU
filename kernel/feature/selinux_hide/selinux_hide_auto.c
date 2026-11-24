@@ -73,7 +73,7 @@ static __nocfi void ksu_security_compute_av_user(struct policydb *policydb, stru
     #else
         struct extended_perms {
             /* I am a placeholder, I just want to make the compiler happy */   
-        }
+        };
         static void (*legacy_context_struct_compute_av_fn)(struct context *scontext,
                                                     struct context *tcontext, u16 tclass, struct av_decision *avd) = NULL;
 
@@ -81,8 +81,8 @@ static __nocfi void ksu_security_compute_av_user(struct policydb *policydb, stru
                                                     struct context *tcontext, u16 tclass, struct av_decision *avd,
                                                     struct extended_perms *xperms)
         {
-            if (legacy_security_dump_masked_av_fn) {
-                legacy_security_dump_masked_av_fn(scontext, tcontext, tclass, avd);
+            if (legacy_context_struct_compute_av_fn) {
+                legacy_context_struct_compute_av_fn(scontext, tcontext, tclass, avd);
             }
         }
     #endif
