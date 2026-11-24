@@ -190,6 +190,19 @@ pub fn run(command: ConfigCommand) -> Result<()> {
                 Some(path) => Config::read_from(path)?,
                 None => Config::default(),
             };
+            // as set_*_uid_filter: one bad entry would make boot drop the whole filter
+            for (field, apps) in [
+                ("priority_uid_filter", &config.priority_uid_filter),
+                ("sus_path_uid_filter", &config.sus_path_uid_filter),
+            ] {
+                let joined = apps
+                    .iter()
+                    .map(String::as_str)
+                    .collect::<Vec<_>>()
+                    .join(",");
+                crate::android::susfs::api::features::package_list::validate_app_strings(&joined)
+                    .with_context(|| format!("{field} in the restored config"))?;
+            }
             config.save()?;
             // A restored config may change `enabled`; bring the ksu_susfs hard
             // link back in sync with the new state.
