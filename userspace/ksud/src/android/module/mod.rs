@@ -866,18 +866,23 @@ fn install_module_to_system(zip: &str) -> Result<String> {
     let module_dir = Path::new(MODULE_DIR).join(module_id);
     // A metamodule doing its own hot install may have moved the marker into the live dir
     std::fs::remove_file(module_dir.join(defs::HOT_INSTALL_MARKER)).ok();
-    ensure_dir_exists(&module_dir)?;
-    copy(
-        updated_dir.join("module.prop"),
-        module_dir.join("module.prop"),
-    )?;
-    ensure_file_exists(module_dir.join(UPDATE_FILE_NAME))?;
+    // these steps fail like the install itself: the staged module must not be applied at boot
+    let finish = || -> Result<()> {
+        ensure_dir_exists(&module_dir)?;
+        copy(
+            updated_dir.join("module.prop"),
+            module_dir.join("module.prop"),
+        )?;
+        ensure_file_exists(module_dir.join(UPDATE_FILE_NAME))?;
 
-    // Create symlink for metamodule
-    if is_metamodule {
-        println!("- Creating metamodule symlink");
-        metamodule::ensure_symlink(&module_dir)?;
-    }
+        // Create symlink for metamodule
+        if is_metamodule {
+            println!("- Creating metamodule symlink");
+            metamodule::ensure_symlink(&module_dir)?;
+        }
+        Ok(())
+    };
+    finish().inspect_err(|_| discard_staged_install(&updated_dir, module_id))?;
 
     println!("- Module installed successfully!");
     info!("Module {module_id} installed successfully!");
