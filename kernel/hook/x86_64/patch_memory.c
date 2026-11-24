@@ -215,9 +215,26 @@ int ksu_patch_text(void *dst, void *src, size_t len, int flags)
     return stop_machine(ksu_patch_text_cb, &info, cpu_online_mask);
 }
 
-// TODO:
+/*
+ * Scan [start, start + size) for a direct `call rel32` (opcode e8) to target.
+ * Branch target = address of the next instruction + SignExtend(rel32).
+ */
 void *scan_call_to(void *start, size_t size, void *target)
 {
+    const u8 *insn = (const u8 *)start;
+    size_t i;
+
+    for (i = 0; i + 5 <= size; i++) {
+        s32 rel32;
+
+        if (insn[i] != 0xe8)
+            continue;
+
+        memcpy(&rel32, &insn[i + 1], sizeof(rel32));
+        if ((void *)(&insn[i + 5] + rel32) == target)
+            return (void *)&insn[i];
+    }
+
     return NULL;
 }
 
