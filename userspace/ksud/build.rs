@@ -355,6 +355,11 @@ fn build_mkbootfs(out_directory: &Path) {
 fn main() {
     assemble_bootstrap();
 
+    // the rerun-if lines above limit reruns to their inputs: also rerun for a new commit (version
+    // from git) and a changed package name
+    println!("cargo:rerun-if-changed=../../.git/logs/HEAD");
+    println!("cargo:rerun-if-env-changed=KSU_PACKAGE_NAME");
+
     let (code, name) = match get_git_version() {
         Ok((code, name)) => (code, name),
         Err(_) => {
