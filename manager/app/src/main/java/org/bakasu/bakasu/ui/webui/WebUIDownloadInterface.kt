@@ -19,6 +19,8 @@ import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import java.io.ByteArrayInputStream
 import java.io.File
+import java.io.FileInputStream
+import java.io.InputStream
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -33,7 +35,7 @@ import org.bakasu.bakasu.data.download.DownloadService
  * Bridge exposed to the WebUI as `ksu_download`.
  *
  * Saves blobs either directly (`save`, small payloads) or in chunks spooled through
- * [BlobDownloadHandler] (large payloads, served back to WebView through the internal blob host).
+ * [BlobDownloadHandler] (large payloads); both end up in the public Downloads collection.
  */
 class WebUIDownloadInterface(private val state: WebUIState) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -78,38 +80,57 @@ class WebUIDownloadInterface(private val state: WebUIState) {
                 postToast(context.getString(R.string.download_failed_content, displayName))
                 return@launch
             }
+            publishWithNotifications(
+                context,
+                notificationManager,
+                downloadId,
+                displayName,
+                mimeType,
+                decoded.size.toLong(),
+            ) { ByteArrayInputStream(decoded) }
+        }
+    }
 
-            var notifiedProgress = -1
-            val savedUri = try {
-                publishToDownloads(context, displayName, mimeType, decoded) { written ->
-                    val progress = if (decoded.isEmpty()) {
-                        100
-                    } else {
-                        ((written * 100L) / decoded.size.toLong()).toInt().coerceIn(0, 100)
-                    }
-                    // the callback runs per 8 KiB: notify once per step, not for every chunk
-                    if (progress != notifiedProgress && (progress % 2 == 0 || progress == 100)) {
-                        notifiedProgress = progress
-                        notificationManager.notify(
-                            downloadId,
-                            buildProgressNotification(context, displayName, progress),
-                        )
-                    }
+    /** Write a save into Downloads with progress, completion or failure notification and toast. */
+    private fun publishWithNotifications(
+        context: Context,
+        notificationManager: NotificationManager,
+        downloadId: Int,
+        displayName: String,
+        mimeType: String,
+        size: Long,
+        open: () -> InputStream,
+    ) {
+        var notifiedProgress = -1
+        val savedUri = try {
+            publishToDownloads(context, displayName, mimeType, open) { written ->
+                val progress = if (size <= 0L) {
+                    100
+                } else {
+                    ((written * 100L) / size).toInt().coerceIn(0, 100)
                 }
-            } catch (throwable: Throwable) {
-                Log.e(TAG, "Failed to save $displayName", throwable)
-                notificationManager.notify(downloadId, buildFailureNotification(context, displayName))
-                postToast(context.getString(R.string.download_failed_content, displayName))
-                null
+                // the callback runs per 8 KiB: notify once per step, not for every chunk
+                if (progress != notifiedProgress && (progress % 2 == 0 || progress == 100)) {
+                    notifiedProgress = progress
+                    notificationManager.notify(
+                        downloadId,
+                        buildProgressNotification(context, displayName, progress),
+                    )
+                }
             }
+        } catch (throwable: Throwable) {
+            Log.e(TAG, "Failed to save $displayName", throwable)
+            notificationManager.notify(downloadId, buildFailureNotification(context, displayName))
+            postToast(context.getString(R.string.download_failed_content, displayName))
+            null
+        }
 
-            if (savedUri != null) {
-                notificationManager.notify(
-                    downloadId,
-                    buildCompletionNotification(context, downloadId, displayName, savedUri, mimeType),
-                )
-                postToast(context.getString(R.string.download_complete_content, displayName))
-            }
+        if (savedUri != null) {
+            notificationManager.notify(
+                downloadId,
+                buildCompletionNotification(context, downloadId, displayName, savedUri, mimeType),
+            )
+            postToast(context.getString(R.string.download_complete_content, displayName))
         }
     }
 
@@ -132,8 +153,38 @@ class WebUIDownloadInterface(private val state: WebUIState) {
     @JavascriptInterface
     fun writeDownloadChunk(downloadId: String, base64Chunk: String): Boolean = BlobDownloadHandler.writeChunk(downloadId, base64Chunk)
 
+    /** Finish the spooled download and write it into Downloads, like [save]; the spool file goes. */
     @JavascriptInterface
-    fun completeChunkedDownload(downloadId: String): Boolean = BlobDownloadHandler.completeDownload(downloadId)
+    fun completeChunkedDownload(downloadId: String): Boolean {
+        val context = webView?.context
+        if (context == null) {
+            BlobDownloadHandler.cancelDownload(downloadId)
+            return false
+        }
+        val download = BlobDownloadHandler.completeDownload(downloadId) ?: return false
+        val notificationManager = context.getSystemService(NotificationManager::class.java)
+        val notificationId = WEBUI_NOTIFICATION_ID_BASE + idCounter.incrementAndGet()
+        val mimeType = download.mimeType?.takeIf { it.isNotBlank() }
+            ?: MimeUtil.getMimeFromFileName(download.fileName)
+            ?: "application/octet-stream"
+        ensureNotificationChannel(notificationManager, context)
+        notificationManager.notify(notificationId, buildProgressNotification(context, download.fileName, 0))
+        scope.launch {
+            try {
+                publishWithNotifications(
+                    context,
+                    notificationManager,
+                    notificationId,
+                    download.fileName,
+                    mimeType,
+                    download.file.length(),
+                ) { FileInputStream(download.file) }
+            } finally {
+                BlobDownloadHandler.cancelDownload(downloadId)
+            }
+        }
+        return true
+    }
 
     @JavascriptInterface
     fun cancelChunkedDownload(downloadId: String) {
@@ -153,7 +204,7 @@ class WebUIDownloadInterface(private val state: WebUIState) {
         context: Context,
         displayName: String,
         mimeType: String,
-        content: ByteArray,
+        open: () -> InputStream,
         onBytesWritten: (Long) -> Unit,
     ): Uri {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -170,7 +221,7 @@ class WebUIDownloadInterface(private val state: WebUIState) {
                 val output = context.contentResolver.openOutputStream(uri)
                     ?: error("Failed to open download")
                 output.use { stream ->
-                    writeWebUIDownload(ByteArrayInputStream(content), stream, onBytesWritten)
+                    open().use { input -> writeWebUIDownload(input, stream, onBytesWritten) }
                 }
                 val published = ContentValues().apply {
                     put(MediaStore.MediaColumns.IS_PENDING, 0)
@@ -189,7 +240,7 @@ class WebUIDownloadInterface(private val state: WebUIState) {
         val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
         val target = resolveAvailableTarget(downloadsDir, displayName)
         try {
-            writeWebUIDownload(target, ByteArrayInputStream(content), onBytesWritten = onBytesWritten)
+            open().use { input -> writeWebUIDownload(target, input, onBytesWritten = onBytesWritten) }
         } catch (throwable: Throwable) {
             target.delete()
             throw throwable

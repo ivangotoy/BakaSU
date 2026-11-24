@@ -53,17 +53,10 @@
                 offset = end;
             }
 
+            // the manager writes the spooled file into Downloads
             if (!ksu_download.completeChunkedDownload(downloadId)) {
                 throw new Error('Failed to complete download');
             }
-
-            const a = document.createElement('a');
-            a.href = downloadId;
-            a.download = fileName;
-            a.style.display = 'none';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
         } catch (error) {
             ksu_download.cancelChunkedDownload(downloadId);
             throw error;

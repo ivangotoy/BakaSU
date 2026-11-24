@@ -56,8 +56,15 @@ object BlobDownloadHandler {
         return "https://$BLOB_DOWNLOAD_HOST/$downloadId"
     }
 
+    /** A finished spool file, to be published by the caller. */
+    class CompletedDownload(val fileName: String, val mimeType: String?, val file: File)
+
+    /** registerBlobDownload hands out the URL; the sessions are keyed by its last segment. */
+    private fun key(downloadId: String) = downloadId.substringAfterLast('/')
+
     /** Write one base64 encoded chunk to the session. */
-    fun writeChunk(downloadId: String, base64Chunk: String): Boolean {
+    fun writeChunk(id: String, base64Chunk: String): Boolean {
+        val downloadId = key(id)
         val download = pendingDownloads[downloadId] ?: return false
         return try {
             synchronized(download) {
@@ -72,25 +79,26 @@ object BlobDownloadHandler {
         }
     }
 
-    /** Mark the download complete and make the spooled file available to WebView. */
-    fun completeDownload(downloadId: String): Boolean {
-        val download = pendingDownloads[downloadId] ?: return false
+    /** Mark the download complete and return its spooled file (removed by [cancelDownload]). */
+    fun completeDownload(id: String): CompletedDownload? {
+        val downloadId = key(id)
+        val download = pendingDownloads[downloadId] ?: return null
         return try {
             synchronized(download) {
-                if (download.completed) return false
+                if (download.completed) return null
                 download.outputStream.flush()
                 download.outputStream.close()
                 download.completed = true
             }
-            true
+            CompletedDownload(download.fileName, download.mimeType, download.tempFile)
         } catch (e: Exception) {
             Log.e("BlobDownloadHandler", "Failed to complete download $downloadId", e)
             closeDownload(downloadId)
-            false
+            null
         }
     }
 
-    fun cancelDownload(downloadId: String) = closeDownload(downloadId)
+    fun cancelDownload(id: String) = closeDownload(key(id))
 
     /** Intercept requests to the internal blob URL and serve the completed file. */
     fun shouldInterceptRequest(request: WebResourceRequest): WebResourceResponse? {
