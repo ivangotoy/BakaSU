@@ -375,4 +375,57 @@ int ksu_patch_text(void *dst, void *src, size_t len, int flags)
 #endif
 }
 
+/*
+ * Scan [start, start + size) for a BL to target.
+ * ARM: BL<c> imm24, branch target = PC + 8 + SignExtend(imm24:'00').
+ * Thumb-2: 11110 S imm10 / 11 J1 1 J2 imm11, I1 = NOT(J1 EOR S), I2 = NOT(J2 EOR S),
+ * branch target = PC + 4 + SignExtend(S:I1:I2:imm10:imm11:'0').
+ */
+void *scan_call_to(void *start, size_t size, void *target)
+{
+    uintptr_t want = (uintptr_t)target & ~1UL;
+#ifdef CONFIG_THUMB2_KERNEL
+    const u16 *insn = (const u16 *)start;
+    size_t count = size / sizeof(u16);
+    size_t i;
+
+    for (i = 0; i + 1 < count; i++) {
+        u32 s, j1, j2, imm25;
+        s32 off;
+
+        if ((insn[i] & 0xf800) != 0xf000 || (insn[i + 1] & 0xd000) != 0xd000)
+            continue;
+
+        s = (insn[i] >> 10) & 1;
+        j1 = (insn[i + 1] >> 13) & 1;
+        j2 = (insn[i + 1] >> 11) & 1;
+        imm25 = (s << 24) | ((~(j1 ^ s) & 1) << 23) | ((~(j2 ^ s) & 1) << 22) | ((u32)(insn[i] & 0x3ff) << 12) |
+                ((u32)(insn[i + 1] & 0x7ff) << 1);
+        off = (s32)(imm25 << 7) >> 7;
+
+        if ((uintptr_t)&insn[i] + 4 + off == want)
+            return (void *)&insn[i];
+    }
+#else
+    const u32 *insn = (const u32 *)start;
+    size_t count = size / sizeof(u32);
+    size_t i;
+
+    for (i = 0; i < count; i++) {
+        s32 off;
+
+        /* BL<c>: bits[27:24] == 0b1011, cond != 0b1111 (that encoding is BLX) */
+        if ((insn[i] & 0x0f000000U) != 0x0b000000U || (insn[i] >> 28) == 0xf)
+            continue;
+
+        off = (s32)(insn[i] << 8) >> 6;
+
+        if ((uintptr_t)&insn[i] + 8 + off == want)
+            return (void *)&insn[i];
+    }
+#endif
+
+    return NULL;
+}
+
 #endif /* __arm__ */
