@@ -702,7 +702,6 @@ static void ksu_selinux_hide_unhook()
     if (ksu_orig_setprocattr) {
         ret = ksu_patch_text((void *)selinux_setprocattr_hook_ptr, &ksu_orig_setprocattr, sizeof(ksu_orig_setprocattr),
                              KSU_PATCH_TEXT_FLUSH_DCACHE);
-        ksu_orig_setprocattr = NULL;
         if (ret) {
             pr_err("selinux_hide: exit: patch_text setprocattr err: %d\n", ret);
         }
@@ -711,7 +710,6 @@ static void ksu_selinux_hide_unhook()
     if (ksu_orig_setxattr) {
         ret = ksu_patch_text((void *)selinux_setxattr_hook_ptr, &ksu_orig_setxattr, sizeof(ksu_orig_setxattr),
                              KSU_PATCH_TEXT_FLUSH_DCACHE);
-        ksu_orig_setxattr = NULL;
         if (ret) {
             pr_err("selinux_hide: exit: patch_text setxattr err: %d\n", ret);
         }
