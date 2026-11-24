@@ -22,14 +22,21 @@ const KSU_BLOCK_MODULES_CONFIG: &str = "ksu_block_modules";
 const KSU_BLOCK_MODULES_MAX_LEN: usize = 255;
 const DEFAULT_BLOCK_MODULES: &str =
     "vr,vklp,vklp_smaps_rollup,oplus_secure_guard,oplus_secure_guard_new,mkp";
+/// Defaults written by earlier ksud versions: an image that still holds one of them was never
+/// customised and gets the current default. Append the old value whenever the default changes.
+const EARLIER_DEFAULT_BLOCK_MODULES: [&str; 2] = [
+    "vr,vklp,oplus_secure_guard,oplus_secure_guard_new",
+    "vr,vklp,oplus_secure_guard,oplus_secure_guard_new,mkp",
+];
 
 /// The ksu_block_modules list to write: the one asked for, else the valid list already in the
-/// ramdisk (a re-patch without the option keeps it), else the default.
+/// ramdisk (a re-patch without the option keeps it) unless it is an earlier default, else the
+/// default.
 fn block_modules_entry(requested: Option<String>, existing: Option<&[u8]>) -> String {
     requested.unwrap_or_else(|| {
         existing
             .and_then(|v| std::str::from_utf8(v).ok())
-            .filter(|v| valid_block_modules(v))
+            .filter(|v| valid_block_modules(v) && !EARLIER_DEFAULT_BLOCK_MODULES.contains(v))
             .map_or_else(|| DEFAULT_BLOCK_MODULES.to_owned(), str::to_owned)
     })
 }
@@ -1217,8 +1224,8 @@ mod tests {
     use android_bootimg::cpio::{Cpio, CpioEntry};
 
     use super::{
-        DEFAULT_BLOCK_MODULES, KSU_BLOCK_MODULES_CONFIG, backup_sha1_matches, block_modules_entry,
-        is_gki_version, remove_ksu_entries,
+        DEFAULT_BLOCK_MODULES, EARLIER_DEFAULT_BLOCK_MODULES, KSU_BLOCK_MODULES_CONFIG,
+        backup_sha1_matches, block_modules_entry, is_gki_version, remove_ksu_entries,
     };
 
     fn sha1_hex(data: &[u8]) -> String {
@@ -1258,6 +1265,22 @@ mod tests {
         );
         assert_eq!(block_modules_entry(Some(String::new()), Some(b"a")), "");
         assert_eq!(block_modules_entry(Some("x".into()), Some(b"a")), "x");
+    }
+
+    #[test]
+    fn earlier_default_block_list_follows_the_current_default() {
+        for old in EARLIER_DEFAULT_BLOCK_MODULES {
+            assert_eq!(
+                block_modules_entry(None, Some(old.as_bytes())),
+                DEFAULT_BLOCK_MODULES
+            );
+        }
+        assert_eq!(
+            block_modules_entry(None, Some(DEFAULT_BLOCK_MODULES.as_bytes())),
+            DEFAULT_BLOCK_MODULES
+        );
+        // a custom list, also one close to a default, stays
+        assert_eq!(block_modules_entry(None, Some(b"vr,vklp")), "vr,vklp");
     }
 
     fn add(cpio: &mut Cpio, name: &str, data: &[u8]) {
