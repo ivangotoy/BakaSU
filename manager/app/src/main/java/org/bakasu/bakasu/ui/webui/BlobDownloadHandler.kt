@@ -97,7 +97,7 @@ object BlobDownloadHandler {
         val url = request.url
         if (url.scheme != "https" || url.host != BLOB_DOWNLOAD_HOST) return null
 
-        val downloadId = url.path?.substring(1)?.takeIf { it.isNotEmpty() }
+        val downloadId = url.path?.removePrefix("/")?.takeIf { it.isNotEmpty() }
             ?: return createErrorResponse("Invalid download ID")
         val download = pendingDownloads[downloadId]
             ?: return createErrorResponse("Download not found")

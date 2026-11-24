@@ -143,7 +143,7 @@ internal suspend fun prepareWebView(
                     BlobDownloadHandler.shouldInterceptRequest(request)?.let { return it }
 
                     if (url.scheme.equals(KSU_SCHEME, ignoreCase = true) && url.host.equals(ICON_HOST, ignoreCase = true)) {
-                        val packageName = url.path?.substring(1)
+                        val packageName = url.path?.removePrefix("/")
                         if (!packageName.isNullOrEmpty()) {
                             val icon = appIconDataSource.loadSync(packageName, 512)
                             if (icon != null) {
