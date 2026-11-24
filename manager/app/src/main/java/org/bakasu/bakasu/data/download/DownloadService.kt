@@ -121,6 +121,10 @@ class DownloadService : Service() {
                 if (expected != null && runCatching { DownloadVerifier(expected) }.isFailure) {
                     val reason = if (expected.size <= 0) DownloadVerificationFailure.SIZE_MISMATCH else DownloadVerificationFailure.SHA256_MISMATCH
                     downloadRepository.markFailed(downloadId, "Invalid verification metadata", reason)
+                    // started with startForegroundService: enter the foreground before stopping,
+                    // or the system kills the app for a service that never called startForeground
+                    if (activeJobs.isEmpty()) startForegroundDownload(downloadId, fileName)
+                    stopForegroundIfIdle()
                     return START_NOT_STICKY
                 }
                 startForegroundDownload(downloadId, fileName)
