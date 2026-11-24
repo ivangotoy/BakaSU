@@ -42,7 +42,7 @@ endif
 
 # some old kernels backport this, so check whether put_seccomp_filter still exists
 ifneq ($(shell grep -wq "put_seccomp_filter" $(srctree)/kernel/seccomp.c $(srctree)/include/linux/seccomp.h; echo $$?),0)
-$(info -- $(REPO_NAME)/compat: put_seccomp_filter found)
+$(info -- $(REPO_NAME)/compat: put_seccomp_filter not found)
 ccflags-y += -DKSU_OPTIONAL_SECCOMP_FILTER_RELEASE
 endif
 
