@@ -166,14 +166,20 @@ check "build: merge identity = the configured MERGE_AUTHOR_NAME / MERGE_AUTHOR_E
 idcase() {
     env BASE_SHA="$B" SIGN_KEYSTORE_B64=a SIGN_KEY_ALIAS=b SIGN_STORE_PASSWORD=c SIGN_KEY_PASSWORD=d \
         MERGE_AUTHOR_NAME="$1" MERGE_AUTHOR_EMAIL="$2" GITHUB_ACTOR=actor-login bash "$CI" build "$W/b1" > "$W/logs/b1-id" 2>&1
-    b1i=$? id_email="$2" id_msg="$3"
+    b1i=$? id_name="$1" id_email="$2" id_msg="$3"
     check "build: merge identity '$1' / '$2' refused" \
-        '[ "$b1i" != 0 ] && grep -q "$id_msg" "$W/logs/b1-id" && { [ -z "$id_email" ] || ! grep -qF -- "$id_email" "$W/logs/b1-id"; }'
+        '[ "$b1i" != 0 ] && grep -q "$id_msg" "$W/logs/b1-id" && { [ -z "$id_email" ] || ! grep -qF -- "$id_email" "$W/logs/b1-id"; } \
+         && { [ -z "${id_name//[[:space:]]/}" ] || ! grep -qF -- "$id_name" "$W/logs/b1-id"; }'
 }
 idcase "" user@example.org "MERGE_AUTHOR_NAME is not set or not a plain name"
 idcase "   " user@example.org "MERGE_AUTHOR_NAME is not set or not a plain name"
 idcase "$(printf 'Example\nUser')" user@example.org "MERGE_AUTHOR_NAME is not set or not a plain name"
 idcase "$(printf 'Example\tUser')" user@example.org "MERGE_AUTHOR_NAME is not set or not a plain name"
+env -u MERGE_AUTHOR_NAME BASE_SHA="$B" SIGN_KEYSTORE_B64=a SIGN_KEY_ALIAS=b SIGN_STORE_PASSWORD=c SIGN_KEY_PASSWORD=d \
+    MERGE_AUTHOR_EMAIL=user@example.org bash "$CI" build "$W/b1" > "$W/logs/b1-unset" 2>&1
+b1u=$?
+check "build: unset MERGE_AUTHOR_NAME refused by name" \
+    '[ "$b1u" != 0 ] && grep -q "MERGE_AUTHOR_NAME is not set or not a plain name" "$W/logs/b1-unset"'
 idcase "Example User" "" "MERGE_AUTHOR_EMAIL is not set or not a plain e-mail address"
 idcase "Example User" "user at example.org" "MERGE_AUTHOR_EMAIL is not set or not a plain e-mail address"
 idcase "Example User" "Example <user@example.org>" "MERGE_AUTHOR_EMAIL is not set or not a plain e-mail address"
