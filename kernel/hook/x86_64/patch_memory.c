@@ -145,6 +145,21 @@ static int ksu_patch_text_nosync(void *dst, void *src, size_t len, int flags)
     int ret = 0;
 
     int phy_err;
+
+    // Only one page is mapped below: split a write that crosses a page boundary,
+    // resolving the second page first so a failure leaves the text untouched.
+    if ((p & ~PAGE_MASK) + len > PAGE_SIZE) {
+        size_t first = PAGE_SIZE - (p & ~PAGE_MASK);
+
+        phys_from_virt(p + first, &phy_err);
+        if (phy_err)
+            return phy_err;
+        ret = ksu_patch_text_nosync(dst, src, first, flags);
+        if (ret)
+            return ret;
+        return ksu_patch_text_nosync((char *)dst + first, (char *)src + first, len - first, flags);
+    }
+
     unsigned long phy = phys_from_virt(p, &phy_err);
     if (phy_err) {
         ret = phy_err;
