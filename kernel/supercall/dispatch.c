@@ -764,8 +764,13 @@ static int manage_try_umount(void __user *arg)
 
     case KSU_UMOUNT_ADD: {
         long len = strncpy_from_user(buf, (const char __user *)cmd.arg, 256);
-        if (len <= 0)
+        if (len < 0)
             return -EFAULT;
+        if (len == 0)
+            return -EINVAL;
+        // no NUL within buf: the path does not fit, refuse instead of storing a truncated one
+        if (len == sizeof(buf))
+            return -ENAMETOOLONG;
 
         buf[sizeof(buf) - 1] = '\0';
 
