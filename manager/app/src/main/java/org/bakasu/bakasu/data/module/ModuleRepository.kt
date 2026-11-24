@@ -58,8 +58,13 @@ class ModuleRepository(
                         }
                     }.awaitAll().any { it }
                 }
+
+                // until the check below runs (or when it cannot run offline), an unchanged module
+                // keeps the update the last check found for its version
+                fun lastUpdate(module: InstalledModule) = previous
+                    .firstOrNull { it.id == module.id && it.versionCode == module.versionCode }?.moduleUpdate
                 mutableInstalledModules.value = InstalledModulesState(
-                    modules = modules,
+                    modules = if (checkUpdates) modules.map { it.copy(moduleUpdate = lastUpdate(it)) } else modules,
                     refreshing = false,
                     hasModuleRequireMount = requiresMount,
                     hasMagisk = ksuCliRepository.hasMagisk(),
@@ -75,7 +80,12 @@ class ModuleRepository(
                                 module.id + module.versionCode !in previousVersionKeys ||
                                     module.updateJson.isEmpty() ||
                                     module.remove || module.update || !module.enabled
-                            if (shouldCheck) checkUpdate(module.updateJson, module.versionCode) else Result.success(null)
+                            if (shouldCheck) {
+                                checkUpdate(module.updateJson, module.versionCode)
+                            } else {
+                                // not checked again: keep what the last check found for this version
+                                Result.success(lastUpdate(module))
+                            }
                         }
                     }.awaitAll()
                 }
