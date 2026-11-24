@@ -7,11 +7,6 @@ import java.io.OutputStream
 
 private const val DEFAULT_WEBUI_DOWNLOAD_NAME = "download.bin"
 
-internal fun resolveWebUIDownloadFile(downloadsDir: File, requestedFileName: String?): File {
-    val fileName = sanitizeWebUIDownloadFileName(requestedFileName)
-    return File(downloadsDir, fileName)
-}
-
 internal fun sanitizeWebUIDownloadFileName(requestedFileName: String?): String {
     val trimmed = requestedFileName?.trim().orEmpty()
     if (trimmed.isEmpty()) return DEFAULT_WEBUI_DOWNLOAD_NAME

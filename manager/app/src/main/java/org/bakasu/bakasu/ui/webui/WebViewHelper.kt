@@ -252,7 +252,6 @@ internal suspend fun prepareWebView(
                     downloadInterface.openExternal(url)
                 }
             }
-            webView.evaluateJavascript(loadDownloadJs(activity), null)
             webUIState.uiEvent = WebUIEvent.WebViewReady
         }
     }
