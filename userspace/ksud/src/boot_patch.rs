@@ -971,7 +971,8 @@ pub fn patch(args: BootPatchArgs) -> Result<()> {
                 format!("kernelsu_patched_{}.img", now.format("%Y%m%d_%H%M%S"))
             });
             let output_image = output_dir.join(name);
-            std::fs::write(&output_image, &new_boot_bytes).context("write out new boot failed")?;
+            write_output_image(&output_image, &new_boot_bytes)
+                .context("write out new boot failed")?;
             println!("- Output file is written to");
             println!("- {}", output_image.display().to_string().trim_matches('"'));
         }
@@ -1141,7 +1142,7 @@ pub fn restore(args: BootRestoreArgs) -> Result<()> {
             format!("kernelsu_restore_{}.img", now.format("%Y%m%d_%H%M%S"))
         });
         let output_image = output_dir.join(name);
-        std::fs::write(&output_image, &new_boot_bytes).context("copy out new boot failed")?;
+        write_output_image(&output_image, &new_boot_bytes).context("copy out new boot failed")?;
         println!("- Output file is written to");
         println!("- {}", output_image.display().to_string().trim_matches('"'));
     }
@@ -1223,6 +1224,14 @@ fn rebuild_without_ksu(
     let mut buf = Cursor::new(Vec::<u8>::new());
     patcher.patch(&mut buf)?;
     Ok(buf.into_inner())
+}
+
+/// Write an output image; a failed (e.g. short) write removes the partial file instead of
+/// leaving a truncated image under the final name.
+fn write_output_image(path: &std::path::Path, data: &[u8]) -> std::io::Result<()> {
+    std::fs::write(path, data).inspect_err(|_| {
+        let _ = std::fs::remove_file(path);
+    })
 }
 
 #[cfg(test)]
