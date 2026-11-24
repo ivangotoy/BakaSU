@@ -320,6 +320,14 @@ mark_remove() {
   chmod 644 $1
 }
 
+mark_replace() {
+  # REPLACE must be directory!!!
+  # https://docs.kernel.org/filesystems/overlayfs.html#whiteouts-and-opaque-directories
+  mkdir -p $1 2>/dev/null
+  setfattr -n trusted.overlay.opaque -v y $1
+  chmod 644 $1
+}
+
 request_size_check() {
   reqSizeM=`du -ms "$1" | cut -f1`
 }

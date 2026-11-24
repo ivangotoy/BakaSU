@@ -366,6 +366,12 @@ check "installer grep_prop: a longer key ending in the key does not match" \
 check "installer grep_prop: key=... inside a value does not match" \
     '[ "$(gprop "$(printf "description=see id=7\nid=real")" id)" = real ]'
 check "installer grep_prop: missing key gives empty" '[ -z "$(gprop "author=x" id)" ]'
+mkdir -p "$W/inst/bin" && printf '#!/bin/sh\nprintf "%%s\\n" "setfattr $*" >> "%s/inst/setfattr.log"\n' "$W" > "$W/inst/bin/setfattr" \
+    && chmod +x "$W/inst/bin/setfattr"
+( PATH="$W/inst/bin:$PATH"; eval "$(sed -n '/^mark_replace() {/,/^}/p' "$INST")"; mark_replace "$W/inst/mod/system/app/X" ) \
+    > "$W/inst/replace.log" 2>&1
+check "installer: REPLACE entries become opaque directories (mark_replace defined)" \
+    '[ -d "$W/inst/mod/system/app/X" ] && grep -qx "setfattr -n trusted.overlay.opaque -v y $W/inst/mod/system/app/X" "$W/inst/setfattr.log"'
 
 echo
 echo "forgejo tests: $npass passed, $nfail failed"
