@@ -445,8 +445,16 @@ void __init ksu_syscall_hook_init(void)
 #endif
     }
 
+    ksu_syscall_table_hook(ni_slot, (syscall_fn_t)ksu_syscall_dispatcher, NULL);
+    if (READ_ONCE(ksu_syscall_table[ni_slot]) != (syscall_fn_t)ksu_syscall_dispatcher) {
+        pr_err("failed to install dispatcher at slot %d\n", ni_slot);
+#ifdef CONFIG_COMPAT
+        goto init_compat_dispatcher;
+#else
+        return;
+#endif
+    }
     ksu_dispatcher_nr = ni_slot;
-    ksu_syscall_table_hook(ksu_dispatcher_nr, (syscall_fn_t)ksu_syscall_dispatcher, NULL);
     pr_info("dispatcher installed at slot %d\n", ksu_dispatcher_nr);
 #ifdef CONFIG_COMPAT
 init_compat_dispatcher:
@@ -464,8 +472,12 @@ init_compat_dispatcher:
         return;
     }
 
+    ksu_compat_syscall_table_hook(ni_slot, (syscall_fn_t)ksu_syscall_dispatcher, NULL);
+    if (READ_ONCE(ksu_compat_syscall_table[ni_slot]) != (syscall_fn_t)ksu_syscall_dispatcher) {
+        pr_err("failed to install compat dispatcher at slot %d\n", ni_slot);
+        return;
+    }
     ksu_compat_dispatcher_nr = ni_slot;
-    ksu_compat_syscall_table_hook(ksu_compat_dispatcher_nr, (syscall_fn_t)ksu_syscall_dispatcher, NULL);
     pr_info("compat dispatcher installed at slot %d\n", ksu_compat_dispatcher_nr);
 #endif
 }
