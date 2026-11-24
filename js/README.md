@@ -34,7 +34,7 @@ Spawns a new process using the given `command` in **root** shell, with command-l
 Returns a `ChildProcess` instance. Instances of `ChildProcess` represent spawned child processes.
 
 - `command` `<string>` The command to run.
-- `args` `<string[]>` List of string arguments.
+- `args` `<string[]>` List of string arguments. They are joined to `command` with spaces and run by the shell as one command line, unquoted: an argument with spaces or shell characters is split or interpreted by the shell. Quote such arguments yourself.
 - `options` `<Object>`:
   - `cwd` `<string>` - Current working directory of the child process.
   - `env` `<Object>` - Environment key-value pairs.
@@ -63,18 +63,15 @@ ls.on('exit', (code) => {
 
 ##### Event 'exit'
 
-- `code` `<number>` The exit code if the child process exited on its own.
+- `code` `<number>` The exit code of the command.
 
-The `'exit'` event is emitted when the child process ends. If the process exits, `code` contains the final exit code; otherwise, it is null.
+The `'exit'` event is emitted when the child process ends, with its exit code.
 
 ##### Event 'error'
 
 - `err` `<Error>` The error.
 
-The `'error'` event is emitted whenever:
-
-- The process could not be spawned.
-- The process could not be killed.
+The `'error'` event is emitted after `'exit'` when the exit code is not 0; `err.exitCode` holds the code and `err.message` the stderr output.
 
 ##### `stdout`
 
