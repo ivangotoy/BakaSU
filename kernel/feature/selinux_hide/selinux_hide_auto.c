@@ -672,6 +672,19 @@ static void hook_selinux_status_open()
     }
 }
 
+static void unhook_selinux_status_open()
+{
+    if (!orig_sel_open_handle_status)
+        return;
+    int ret = ksu_patch_text(sel_open_handle_status_slot, &orig_sel_open_handle_status,
+                             sizeof(orig_sel_open_handle_status), KSU_PATCH_TEXT_FLUSH_DCACHE);
+    if (ret) {
+        pr_err("selinux_hide: exit: patch_text sel_open_handle_status err: %d\n", ret);
+        return;
+    }
+    orig_sel_open_handle_status = NULL;
+}
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 2, 0) && !defined(KSU_COMPAT_HAS_LIST_OF_LSM_HOOKS)
 extern void ksu_unregister_setprocattr_lsm_hook();
 extern void ksu_unregister_setxattr_lsm_hook();
