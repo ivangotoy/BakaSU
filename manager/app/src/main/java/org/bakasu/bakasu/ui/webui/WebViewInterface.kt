@@ -24,6 +24,7 @@ class WebViewInterface(
     private val webUiRepository: WebUiRepository,
 ) {
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val ksuIo = KsuIO()
     private val modDir get() = state.modDir
 
     private fun postToWebView(action: (android.webkit.WebView) -> Unit) {
@@ -239,13 +240,13 @@ class WebViewInterface(
     }
 
     @JavascriptInterface
-    fun io() = KsuIO
+    fun io() = ksuIo
 
     @JavascriptInterface
     fun pm() = KsuPm(packageRepository)
 
     fun destroy() {
-        KsuIO.destroy()
+        ksuIo.destroy()
     }
 }
 

@@ -155,8 +155,6 @@ object BlobDownloadHandler {
         }
     }
 
-    fun cleanup() = pendingDownloads.keys.toList().forEach(::closeDownload)
-
     private class CleanupInputStream(
         input: InputStream,
         private val onClose: () -> Unit,

@@ -21,6 +21,7 @@ import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.InputStream
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -40,6 +41,9 @@ import org.bakasu.bakasu.data.download.DownloadService
 class WebUIDownloadInterface(private val state: WebUIState) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val idCounter = AtomicInteger(0)
+
+    // blob sessions of this WebUI: closing it must not cancel another WebUI's downloads
+    private val blobSessions = ConcurrentHashMap.newKeySet<String>()
     private val webView get() = state.webView
 
     companion object {
@@ -143,7 +147,7 @@ class WebUIDownloadInterface(private val state: WebUIState) {
                 sanitizedFileName,
                 mimeType,
                 currentWebView.context.cacheDir,
-            )
+            ).also { blobSessions.add(it) }
         }.getOrElse {
             Log.e(TAG, "Failed to start chunked download", it)
             ""
@@ -181,6 +185,7 @@ class WebUIDownloadInterface(private val state: WebUIState) {
                 ) { FileInputStream(download.file) }
             } finally {
                 BlobDownloadHandler.cancelDownload(downloadId)
+                blobSessions.remove(downloadId)
             }
         }
         return true
@@ -189,11 +194,13 @@ class WebUIDownloadInterface(private val state: WebUIState) {
     @JavascriptInterface
     fun cancelChunkedDownload(downloadId: String) {
         BlobDownloadHandler.cancelDownload(downloadId)
+        blobSessions.remove(downloadId)
     }
 
     fun destroy() {
         scope.cancel()
-        BlobDownloadHandler.cleanup()
+        blobSessions.forEach(BlobDownloadHandler::cancelDownload)
+        blobSessions.clear()
     }
 
     /**

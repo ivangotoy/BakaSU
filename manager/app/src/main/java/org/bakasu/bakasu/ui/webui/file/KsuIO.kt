@@ -6,15 +6,13 @@ import java.util.concurrent.ConcurrentHashMap
 
 const val TAG = "KsuIO"
 
-object KsuIO {
-    private const val KSU_IO_VERSION = 1
-    private const val MAX_OPEN_STREAMS = 50
-
+/** File access of one WebUI (`ksu.io()`): its streams close with that WebUI. */
+class KsuIO {
     internal val openInputStreams = ConcurrentHashMap<String, ManagedInputStream>()
     internal val openOutputStreams = ConcurrentHashMap<String, OutputStream>()
 
-    private val fileOutputStream = FileOutputStreamInterface()
-    private val fileInputStream = FileInputStreamInterface()
+    private val fileOutputStream = FileOutputStreamInterface(this)
+    private val fileInputStream = FileInputStreamInterface(this)
     private val randomAccessFile = RandomAccessFileInterface()
 
     @JavascriptInterface
@@ -22,7 +20,7 @@ object KsuIO {
 
     @JavascriptInterface
     @Suppress("ktlint:standard:function-naming")
-    fun File(path: String): FileInterface = FileInterface(path)
+    fun File(path: String): FileInterface = FileInterface(path, this)
 
     @JavascriptInterface
     @Suppress("ktlint:standard:function-naming")
@@ -46,5 +44,10 @@ object KsuIO {
         fileInputStream.closeAll()
         fileOutputStream.closeAll()
         randomAccessFile.closeAll()
+    }
+
+    private companion object {
+        const val KSU_IO_VERSION = 1
+        const val MAX_OPEN_STREAMS = 50
     }
 }
