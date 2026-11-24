@@ -1275,14 +1275,23 @@ int ksu_try_handle_toolkit_cmd(int magic2, unsigned int cmd, void __user **arg)
         }
 
         // for release
-        if (strncpy_from_user(release_buf, (char __user *)u_ptr, sizeof(release_buf)) < 0) {
+        long release_len = strncpy_from_user(release_buf, (char __user *)u_ptr, sizeof(release_buf));
+        if (release_len < 0) {
             pr_err("handle_toolkit_cmd: strncpy_from_user fail\n");
             return 1;
         }
         release_buf[sizeof(release_buf) - 1] = '\0';
 
+        // version follows the whole user release string, which may be longer than release_buf
+        if (release_len == sizeof(release_buf))
+            release_len = strnlen_user((char __user *)u_ptr, PAGE_SIZE) - 1;
+        if (release_len < 0 || release_len >= PAGE_SIZE) {
+            pr_err("handle_toolkit_cmd: release string invalid\n");
+            return 1;
+        }
+
         // for version
-        if (strncpy_from_user(version_buf, (char __user *)(u_ptr + strlen(release_buf) + 1), sizeof(version_buf)) < 0) {
+        if (strncpy_from_user(version_buf, (char __user *)(u_ptr + release_len + 1), sizeof(version_buf)) < 0) {
             pr_err("handle_toolkit_cmd: strncpy_from_user fail\n");
             return 1;
         }
