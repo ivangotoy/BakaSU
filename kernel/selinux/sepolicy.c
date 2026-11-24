@@ -1121,7 +1121,7 @@ struct ksu_original_symbols *ksu_advance_original_symbols(struct policydb *db, s
 
     snapshot = ksu_alloc_original_symbols();
     if (!snapshot)
-        return NULL;
+        return ERR_PTR(-ENOMEM);
     snapshot->policy = db;
     snapshot->generation = policy_generation;
     memcpy(snapshot->limits, old->limits, sizeof(snapshot->limits));
