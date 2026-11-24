@@ -116,7 +116,14 @@ class SuFilePathHandler(
                 val inputStream = webUiRepository.openFile(file.absolutePath)
                     ?: return WebResourceResponse(null, null, null)
                 val mimeType = guessMimeType(path)
-                return WebResourceResponse(mimeType, null, handleSvgzStream(path, inputStream))
+                // a malformed .svgz throws in the GZIP header read: close the root stream then
+                val body = try {
+                    handleSvgzStream(path, inputStream)
+                } catch (e: IOException) {
+                    inputStream.close()
+                    throw e
+                }
+                return WebResourceResponse(mimeType, null, body)
             } else {
                 Log.e(
                     TAG,
