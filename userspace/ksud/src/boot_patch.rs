@@ -860,6 +860,10 @@ pub fn patch(args: BootPatchArgs) -> Result<()> {
                 && let Err(e) = do_backup(&mut cpio, &boot_image_file)
             {
                 println!("- Backup stock image failed: {e:?}");
+                // a backup asked for with --backup must exist before anything is flashed
+                if backup {
+                    return Err(e);
+                }
             }
         }
 
