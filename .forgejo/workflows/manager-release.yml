@@ -16,7 +16,9 @@ jobs:
           SERVER_URL: ${{ github.server_url }}
           REPOSITORY: ${{ github.repository }}
           BASE_SHA: ${{ github.sha }}
-          DISPATCH_ACTOR: ${{ github.actor }}
+          # author of the release-time upstream merge (repository Actions variables, required)
+          MERGE_AUTHOR_NAME: ${{ vars.MERGE_AUTHOR_NAME }}
+          MERGE_AUTHOR_EMAIL: ${{ vars.MERGE_AUTHOR_EMAIL }}
           SIGN_KEYSTORE_B64: ${{ secrets.SIGN_KEYSTORE_B64 }}
           SIGN_KEY_ALIAS: ${{ secrets.SIGN_KEY_ALIAS }}
           SIGN_STORE_PASSWORD: ${{ secrets.SIGN_STORE_PASSWORD }}
