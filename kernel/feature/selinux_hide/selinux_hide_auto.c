@@ -543,7 +543,7 @@ int __nocfi ksu_handle_selinux_inode_setxattr(struct dentry *dentry, const char 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0) || defined(KSU_COMPAT_HAS_ISEC_LABEL_INITIALIZED)
     if (isec->initialized != LABEL_INITIALIZED)
 #else
-    if (isec->initialized)
+    if (!isec->initialized)
 #endif
         inode_doinit_with_dentry_fn(inode, dentry);
 
