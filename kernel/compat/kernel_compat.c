@@ -155,6 +155,7 @@ void *ksu_compat_kvrealloc(const void *p, size_t oldsize, size_t newsize, gfp_t 
 // directly call is enough
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
 #include <linux/task_work.h>
+#include <linux/pid_namespace.h>
 struct ksu_task_work_struct {
     struct callback_head cb;
     void (*callback)(void *);
@@ -174,7 +175,10 @@ void ksu_run_in_init_if_possible(void (*callback)(void *), void *data)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
     struct task_struct *tsk;
 
-    tsk = get_pid_task(find_vpid(1), PIDTYPE_PID);
+    // pid 1 of the initial namespace, not of the caller's pid namespace
+    rcu_read_lock();
+    tsk = get_pid_task(find_pid_ns(1, &init_pid_ns), PIDTYPE_PID);
+    rcu_read_unlock();
     if (!tsk) {
         pr_err("ksu run in init find init task err\n");
         return;
