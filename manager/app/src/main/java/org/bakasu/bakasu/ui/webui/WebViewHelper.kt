@@ -145,7 +145,7 @@ internal suspend fun prepareWebView(
                     // a main-frame load that shouldOverrideUrlLoading does not see (e.g. a form POST)
                     // must not take the bridges to another origin
                     val onWebUi = url.scheme.equals("https", ignoreCase = true) &&
-                        url.host.equals("mui.kernelsu.org", ignoreCase = true)
+                        url.host.equals(WEB_DOMAIN, ignoreCase = true)
                     if (request.isForMainFrame && !onWebUi) {
                         return WebResourceResponse("text/plain", "utf-8", 403, "Forbidden", emptyMap(), ByteArrayInputStream(ByteArray(0)))
                     }
@@ -187,7 +187,7 @@ internal suspend fun prepareWebView(
                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                     val url = request.url
                     val onWebUi = url.scheme.equals("https", ignoreCase = true) &&
-                        url.host.equals("mui.kernelsu.org", ignoreCase = true)
+                        url.host.equals(WEB_DOMAIN, ignoreCase = true)
                     if (!request.isForMainFrame || onWebUi) return false
                     // only web pages go to the browser; file:, content:, intent: and others are blocked
                     val web = url.scheme.equals("http", ignoreCase = true) ||
