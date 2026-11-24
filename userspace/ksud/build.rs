@@ -356,8 +356,11 @@ fn main() {
     assemble_bootstrap();
 
     // the rerun-if lines above limit reruns to their inputs: also rerun for a new commit (version
-    // from git) and a changed package name
-    println!("cargo:rerun-if-changed=../../.git/logs/HEAD");
+    // from git) and a changed package name. A missing path (linked worktree, no reflog) would make
+    // cargo rerun on every build, so it is only watched when it exists.
+    if Path::new("../../.git/logs/HEAD").exists() {
+        println!("cargo:rerun-if-changed=../../.git/logs/HEAD");
+    }
     println!("cargo:rerun-if-env-changed=KSU_PACKAGE_NAME");
 
     let (code, name) = match get_git_version() {
