@@ -79,9 +79,8 @@ class WebUIDownloadInterface(private val state: WebUIState) {
                 return@launch
             }
 
-            var pendingUri: Uri? = null
             val savedUri = try {
-                val published = publishToDownloads(context, displayName, mimeType, decoded) { written ->
+                publishToDownloads(context, displayName, mimeType, decoded) { written ->
                     val progress = if (decoded.isEmpty()) {
                         100
                     } else {
@@ -94,14 +93,7 @@ class WebUIDownloadInterface(private val state: WebUIState) {
                         )
                     }
                 }
-                pendingUri = published.first
-                published.second
             } catch (throwable: Throwable) {
-                pendingUri?.let { uri ->
-                    if (uri.scheme == "content") {
-                        runCatching { context.contentResolver.delete(uri, null, null) }
-                    }
-                }
                 Log.e(TAG, "Failed to save $displayName", throwable)
                 notificationManager.notify(downloadId, buildFailureNotification(context, displayName))
                 postToast(context.getString(R.string.download_failed_content, displayName))
@@ -152,8 +144,7 @@ class WebUIDownloadInterface(private val state: WebUIState) {
 
     /**
      * Persist [content] into the public Downloads collection and return the publishable uri.
-     *
-     * Returns the pending uri (for cleanup) plus the final uri.
+     * A failed write removes what it created: no pending MediaStore entry or partial file stays.
      */
     private fun publishToDownloads(
         context: Context,
@@ -161,7 +152,7 @@ class WebUIDownloadInterface(private val state: WebUIState) {
         mimeType: String,
         content: ByteArray,
         onBytesWritten: (Long) -> Unit,
-    ): Pair<Uri, Uri> {
+    ): Uri {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
             val values = ContentValues().apply {
@@ -172,30 +163,39 @@ class WebUIDownloadInterface(private val state: WebUIState) {
             }
             val uri = context.contentResolver.insert(collection, values)
                 ?: error("Failed to create download")
-            val output = context.contentResolver.openOutputStream(uri)
-                ?: error("Failed to open download")
-            output.use { stream ->
-                writeWebUIDownload(ByteArrayInputStream(content), stream, onBytesWritten)
+            try {
+                val output = context.contentResolver.openOutputStream(uri)
+                    ?: error("Failed to open download")
+                output.use { stream ->
+                    writeWebUIDownload(ByteArrayInputStream(content), stream, onBytesWritten)
+                }
+                val published = ContentValues().apply {
+                    put(MediaStore.MediaColumns.IS_PENDING, 0)
+                }
+                if (context.contentResolver.update(uri, published, null, null) != 1) {
+                    error("Failed to publish download")
+                }
+            } catch (throwable: Throwable) {
+                runCatching { context.contentResolver.delete(uri, null, null) }
+                throw throwable
             }
-            val published = ContentValues().apply {
-                put(MediaStore.MediaColumns.IS_PENDING, 0)
-            }
-            if (context.contentResolver.update(uri, published, null, null) != 1) {
-                error("Failed to publish download")
-            }
-            return uri to uri
+            return uri
         }
 
         @Suppress("DEPRECATION")
         val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
         val target = resolveAvailableTarget(downloadsDir, displayName)
-        writeWebUIDownload(target, ByteArrayInputStream(content), onBytesWritten = onBytesWritten)
-        val uri = FileProvider.getUriForFile(
+        try {
+            writeWebUIDownload(target, ByteArrayInputStream(content), onBytesWritten = onBytesWritten)
+        } catch (throwable: Throwable) {
+            target.delete()
+            throw throwable
+        }
+        return FileProvider.getUriForFile(
             context,
             "${BuildConfig.APPLICATION_ID}.fileprovider",
             target,
         )
-        return uri to uri
     }
 
     private fun resolveAvailableTarget(directory: File, fileName: String): File {
