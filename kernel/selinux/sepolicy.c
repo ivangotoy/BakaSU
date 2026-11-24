@@ -660,13 +660,27 @@ static bool add_filename_trans(struct policydb *db, const char *s, const char *t
             kfree(trans);
             return false;
         }
-        trans->next = last;
         trans->otype = def->value;
-        hashtab_insert(&db->filename_trans, new_key, trans, filenametr_key_params);
+        if (last) {
+            // The key exists: append to its datum chain like policydb_read()
+            last->next = trans;
+            kfree(new_key->name);
+            kfree(new_key);
+        } else if (hashtab_insert(&db->filename_trans, new_key, trans, filenametr_key_params)) {
+            pr_err("add_filename_trans: Failed to insert datum\n");
+            kfree(new_key->name);
+            kfree(new_key);
+            kfree(trans);
+            return false;
+        }
     }
 
+    if (ebitmap_set_bit(&db->filename_trans_ttypes, key.ttype, 1))
+        return false;
+    if (ebitmap_set_bit(&trans->stypes, src->value - 1, 1))
+        return false;
     db->compat_filename_trans_count++;
-    return ebitmap_set_bit(&trans->stypes, src->value - 1, 1) == 0;
+    return true;
 #else // < 5.7.0, has no filename_trans_key, but struct filename_trans
 
     struct filename_trans key;
