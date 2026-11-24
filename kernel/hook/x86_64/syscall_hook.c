@@ -316,6 +316,9 @@ static int patch_abs_jump(const char *sym, void **patch_addr, void *target, char
             *patch_addr = NULL;
             return -EIO;
         }
+        // every syscall now passes through module text: tasks blocked in a syscall
+        // would return into freed text after unload, so pin the module
+        __module_get(THIS_MODULE);
         return 0;
     }
     return -ENOENT;
