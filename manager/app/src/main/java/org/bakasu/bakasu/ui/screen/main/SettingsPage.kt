@@ -161,7 +161,8 @@ fun SettingsPage(bottomPadding: Dp) {
             scope.launch(Dispatchers.IO) {
                 loadingDialog.show()
                 val saved = runCatching {
-                    context.contentResolver.openOutputStream(uri)?.use { output ->
+                    // no stream means nothing was written: a failure, not "saved"
+                    (context.contentResolver.openOutputStream(uri) ?: error("no output stream")).use { output ->
                         generateBugreport().inputStream().use {
                             it.copyTo(output)
                         }
