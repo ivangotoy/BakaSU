@@ -195,15 +195,15 @@ mod android {
 
     pub(super) fn do_backup(cpio: &mut Cpio, image: &Path) -> Result<()> {
         let sha1 = calculate_sha1(image)?;
-        let (mut target_file, target) = find_backup_location(&sha1)?;
-        println!("- Backup stock boot image");
-
+        // open the source first: a failure here must not leave an empty <backup>.tmp behind
         let mut source = OpenOptions::new()
             .create(false)
             .truncate(false)
             .read(true)
             .write(false)
             .open(image)?;
+        let (mut target_file, target) = find_backup_location(&sha1)?;
+        println!("- Backup stock boot image");
 
         let tmp = format!("{target}.tmp");
         if let Err(e) = std::io::copy(&mut source, &mut target_file)
