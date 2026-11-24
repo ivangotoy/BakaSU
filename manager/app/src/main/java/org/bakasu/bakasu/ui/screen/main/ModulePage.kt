@@ -1006,7 +1006,8 @@ private fun ModuleList(
                     },
                     onCheckChanged = { enabled ->
                         viewModel.dispatch(ModuleUiAction.SetEnabled(module.dirId, enabled))
-                        true
+                        // the switch follows module.enabled, which changes only when ksud applied it
+                        false
                     },
                     onUpdate = {
                         scope.launch {
