@@ -492,9 +492,15 @@ static bool add_xperm_rule(struct policydb *db, const char *s, const char *t, co
 
     if (range) {
         if (strchr(range, '-')) {
-            sscanf(range, "%hx-%hx", &low, &high);
+            if (sscanf(range, "%hx-%hx", &low, &high) != 2) {
+                pr_info("invalid xperm range %s\n", range);
+                return false;
+            }
         } else {
-            sscanf(range, "%hx", &low);
+            if (sscanf(range, "%hx", &low) != 1) {
+                pr_info("invalid xperm range %s\n", range);
+                return false;
+            }
             high = low;
         }
     } else {
