@@ -1,5 +1,7 @@
 #include <linux/kthread.h>
 #include <linux/syslog.h>
+#include <linux/uaccess.h>
+#include <linux/version.h>
 #include <linux/vmalloc.h>
 
 #include "apatch_conflict.h"
@@ -105,10 +107,17 @@ static unsigned long symbol_lookup_name(const char *name)
 {
     unsigned long hash = sym_hash(name);
     uint64_t addr;
+    kp_symbol_t symbol;
     for (addr = symbol_region.symbol_start; addr < symbol_region.symbol_end; addr += sizeof(kp_symbol_t)) {
-        kp_symbol_t *symbol = (kp_symbol_t *)addr;
-        if (hash == symbol->hash && !local_strcmp(name, symbol->name)) {
-            return symbol->addr;
+        // the region comes from a log line: stop at the first address that cannot be read
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
+        if (copy_from_kernel_nofault(&symbol, (const void *)addr, sizeof(symbol)))
+#else
+        if (probe_kernel_read(&symbol, (const void *)addr, sizeof(symbol)))
+#endif
+            break;
+        if (hash == symbol.hash && !local_strcmp(name, symbol.name)) {
+            return symbol.addr;
         }
     }
     return 0;
