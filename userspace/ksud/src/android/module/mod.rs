@@ -349,7 +349,14 @@ pub fn exec_script_with<T: AsRef<Path>>(
 
     let result = match wait {
         ScriptWait::NoWait => command.spawn().map(|_| ()),
-        ScriptWait::Forever => command.status().map(|_| ()),
+        // a waited-for script reports failure (`ksud module action` shows it; the uninstaller only warns)
+        ScriptWait::Forever => command.status().and_then(|status| {
+            if status.success() {
+                Ok(())
+            } else {
+                Err(std::io::Error::other(format!("exited with {status}")))
+            }
+        }),
         ScriptWait::Until(deadline) => command.spawn().and_then(|child| {
             // Once the shared deadline has passed, launch later scripts without waiting.
             if deadline > Instant::now()
