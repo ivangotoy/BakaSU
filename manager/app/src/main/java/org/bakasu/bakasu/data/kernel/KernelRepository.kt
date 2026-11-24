@@ -99,9 +99,8 @@ class KernelRepository(
 
     fun isLateLoadMode(): Boolean = runCatching { Natives.isLateLoadMode }.getOrDefault(false)
 
+    // a change that is not saved is gone after a reboot: report it as failed
     private suspend fun saveFeature(block: () -> Boolean): Boolean = withContext(Dispatchers.IO) {
-        block().also { success ->
-            if (success) ksuCliRepository.execKsud("feature save", true)
-        }
+        block() && ksuCliRepository.execKsud("feature save", true)
     }
 }
