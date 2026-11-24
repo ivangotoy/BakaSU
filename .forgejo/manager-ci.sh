@@ -125,7 +125,9 @@ if [ "$MODE" = build ]; then
     : "${BASE_SHA:?}"
     # author and committer of the release-time upstream merge, from the repository's Actions
     # variables: no fallback, the release stops when they are missing
-    [ -n "${MERGE_AUTHOR_NAME:-}" ] || die "MERGE_AUTHOR_NAME is not set"
+    # a name of spaces only, or with a newline or other control character, is no identity
+    [[ -n "${MERGE_AUTHOR_NAME//[[:space:]]/}" && ! "${MERGE_AUTHOR_NAME:-}" =~ [[:cntrl:]] ]] \
+        || die "MERGE_AUTHOR_NAME is not set or not a plain name"
     [[ "${MERGE_AUTHOR_EMAIL:-}" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]+$ ]] \
         || die "MERGE_AUTHOR_EMAIL is not set or not a plain e-mail address"
     export MERGE_AUTHOR_NAME MERGE_AUTHOR_EMAIL

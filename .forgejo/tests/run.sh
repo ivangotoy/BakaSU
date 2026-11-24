@@ -170,7 +170,10 @@ idcase() {
     check "build: merge identity '$1' / '$2' refused" \
         '[ "$b1i" != 0 ] && grep -q "$id_msg" "$W/logs/b1-id" && { [ -z "$id_email" ] || ! grep -qF -- "$id_email" "$W/logs/b1-id"; }'
 }
-idcase "" user@example.org "MERGE_AUTHOR_NAME is not set"
+idcase "" user@example.org "MERGE_AUTHOR_NAME is not set or not a plain name"
+idcase "   " user@example.org "MERGE_AUTHOR_NAME is not set or not a plain name"
+idcase "$(printf 'Example\nUser')" user@example.org "MERGE_AUTHOR_NAME is not set or not a plain name"
+idcase "$(printf 'Example\tUser')" user@example.org "MERGE_AUTHOR_NAME is not set or not a plain name"
 idcase "Example User" "" "MERGE_AUTHOR_EMAIL is not set or not a plain e-mail address"
 idcase "Example User" "user at example.org" "MERGE_AUTHOR_EMAIL is not set or not a plain e-mail address"
 idcase "Example User" "Example <user@example.org>" "MERGE_AUTHOR_EMAIL is not set or not a plain e-mail address"
