@@ -106,7 +106,7 @@ unsigned long phys_from_virt(unsigned long addr, int *err)
     pmd = pmd_offset(pud, addr);
     pr_info("pmd of 0x%lx p=0x%lx v=0x%lx", addr, (uintptr_t)pmd, (uintptr_t)pmd_val(*pmd));
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0) && !defined(CONFIG_ARM_LPAE)
+#if !defined(CONFIG_ARM_LPAE)
     /*
      * ARM32 non-LPAE short-descriptor section mapping.
      *
@@ -125,9 +125,7 @@ unsigned long phys_from_virt(unsigned long addr, int *err)
             return (sect_val & SECTION_MASK) + (addr & ~SECTION_MASK);
         }
     }
-#endif
-
-#if defined(pmd_leaf)
+#elif defined(pmd_leaf)
     if (pmd_leaf(*pmd)) {
         pr_info("Address 0x%lx maps to a PMD-level huge page\n", addr);
         return KSU_PMD_TO_PHYS(*pmd) + ((addr & ~PMD_MASK));
