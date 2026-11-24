@@ -541,7 +541,7 @@ int __nocfi ksu_handle_selinux_inode_setxattr(struct dentry *dentry, const char 
         return PTR_ERR(isec);
     // Match backing_inode_security: keep old label if reload fails
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0) || defined(KSU_COMPAT_HAS_ISEC_LABEL_INITIALIZED)
-    if (isec->initialized == LABEL_INITIALIZED)
+    if (isec->initialized != LABEL_INITIALIZED)
 #else
     if (isec->initialized)
 #endif
