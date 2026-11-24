@@ -79,6 +79,7 @@ class WebUIDownloadInterface(private val state: WebUIState) {
                 return@launch
             }
 
+            var notifiedProgress = -1
             val savedUri = try {
                 publishToDownloads(context, displayName, mimeType, decoded) { written ->
                     val progress = if (decoded.isEmpty()) {
@@ -86,7 +87,9 @@ class WebUIDownloadInterface(private val state: WebUIState) {
                     } else {
                         ((written * 100L) / decoded.size.toLong()).toInt().coerceIn(0, 100)
                     }
-                    if (progress % 2 == 0 || progress == 100) {
+                    // the callback runs per 8 KiB: notify once per step, not for every chunk
+                    if (progress != notifiedProgress && (progress % 2 == 0 || progress == 100)) {
+                        notifiedProgress = progress
                         notificationManager.notify(
                             downloadId,
                             buildProgressNotification(context, displayName, progress),
