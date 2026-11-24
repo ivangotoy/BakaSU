@@ -321,7 +321,7 @@ pub fn list_features() {
 
         if let Some(modules) = managed_by {
             println!(
-                "    ⚠️  Managed by module(s): {} (forced to 0 on initialization)",
+                "    ⚠️  Managed by module(s): {} (saved value not applied at boot)",
                 modules.join(", ")
             );
         }
