@@ -95,6 +95,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -632,11 +633,13 @@ private fun ModuleList(
     val downloadingText = stringResource(R.string.module_downloading)
     val startDownloadingText = stringResource(R.string.module_start_downloading)
 
+    // the collector below outlives this composition: read the current list, not the first one
+    val currentModules by rememberUpdatedState(uiState.moduleList)
     LaunchedEffect(viewModel) {
         viewModel.events.collectLatest { event ->
             when (event) {
                 is ModuleUiEvent.EnabledChanged -> {
-                    val moduleName = uiState.moduleList
+                    val moduleName = currentModules
                         .find { it.dirId == event.moduleId }
                         ?.name ?: event.moduleId
                     if (event.successful) {
@@ -655,7 +658,7 @@ private fun ModuleList(
                 }
 
                 is ModuleUiEvent.RemovedChanged -> {
-                    val moduleName = uiState.moduleList
+                    val moduleName = currentModules
                         .find { it.dirId == event.moduleId }
                         ?.name ?: event.moduleId
                     if (event.successful) {
