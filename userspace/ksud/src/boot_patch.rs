@@ -326,6 +326,12 @@ mod android {
     #[cfg(target_os = "android")]
     pub(super) fn post_ota() -> Result<()> {
         use crate::{assets::BOOTCTL_PATH, defs::ADB_DIR};
+        // bootctl ships for arm64 only (bin/aarch64): elsewhere, as without a boot HAL, the slot
+        // stays as it is
+        if cfg!(not(target_arch = "aarch64")) {
+            println!("- bootctl not available, active slot not switched");
+            return Ok(());
+        }
         let status = Command::new(BOOTCTL_PATH).arg("hal-info").status()?;
         if !status.success() {
             return Ok(());
