@@ -376,6 +376,10 @@ out:
 void track_throne(unsigned int flags)
 {
     struct track_throne_struct *tts = kzalloc(sizeof(struct track_throne_struct), GFP_KERNEL);
+    if (!tts) {
+        pr_err("%s: alloc failed, flags: 0x%x\n", __func__, flags);
+        return;
+    }
     tts->flags = flags;
 
     if (flags & TRACK_THRONE_FORCE_SYNCHRONOUS) {
