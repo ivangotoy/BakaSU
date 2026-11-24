@@ -437,16 +437,15 @@ class KsuCliRepository(context: Context) {
     ): Boolean {
         val resolver = context.contentResolver
 
-        val bootFile = bootUri?.let { uri ->
-            with(resolver.openInputStream(uri)) {
-                val bootFile = File(context.cacheDir, "boot.img")
-                bootFile.outputStream().use { output ->
-                    this?.copyTo(output)
-                }
-
-                bootFile
-            }
+        // a selected file that cannot be read fails here, not as an empty image passed to ksud
+        fun copyToCache(uri: Uri, name: String): File {
+            val file = File(context.cacheDir, name)
+            val input = resolver.openInputStream(uri) ?: throw IOException("cannot open $uri")
+            input.use { source -> file.outputStream().use { output -> source.copyTo(output) } }
+            return file
         }
+
+        val bootFile = bootUri?.let { uri -> copyToCache(uri, "boot.img") }
 
         var cmd = "boot-patch"
 
@@ -464,13 +463,11 @@ class KsuCliRepository(context: Context) {
         var lkmFile: File? = null
         when (lkm) {
             is LkmSelection.LkmUri -> {
-                lkmFile = with(resolver.openInputStream(lkm.uri.toUri())) {
-                    val file = File(context.cacheDir, "kernelsu-tmp-lkm.ko")
-                    file.outputStream().use { output ->
-                        this?.copyTo(output)
-                    }
-
-                    file
+                lkmFile = try {
+                    copyToCache(lkm.uri.toUri(), "kernelsu-tmp-lkm.ko")
+                } catch (e: IOException) {
+                    bootFile?.delete()
+                    throw e
                 }
                 cmd += " -m ${lkmFile.absolutePath}"
             }
@@ -505,11 +502,13 @@ class KsuCliRepository(context: Context) {
             cmd += " --backup"
         }
 
-        val result = flashWithIO("${getKsuDaemonPath()} $cmd", onStdout, onStderr)
+        val result = try {
+            flashWithIO("${getKsuDaemonPath()} $cmd", onStdout, onStderr)
+        } finally {
+            bootFile?.delete()
+            lkmFile?.delete()
+        }
         Log.i("KernelSU", "install boot result: ${result.isSuccess}")
-
-        bootFile?.delete()
-        lkmFile?.delete()
 
         // if boot uri is empty, it is direct install, when success, we should show reboot button
         onFinish(bootUri == null && result.isSuccess, result.code)
