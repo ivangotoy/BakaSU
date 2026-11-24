@@ -262,7 +262,8 @@ pub fn install(libadbroot: Option<PathBuf>, data_path: Option<PathBuf>) -> Resul
     if let Some(libadbroot) = libadbroot {
         ensure_dir_exists(defs::LIBRARY_DIR)?;
         let _ = std::fs::remove_file(defs::LIBADBROOT_PATH);
-        let _ = std::fs::copy(libadbroot, defs::LIBADBROOT_PATH);
+        std::fs::copy(libadbroot, defs::LIBADBROOT_PATH)
+            .with_context(|| format!("Failed to install {}", defs::LIBADBROOT_PATH))?;
     }
 
     if let Some(data_path) = data_path {
