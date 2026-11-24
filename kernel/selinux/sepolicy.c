@@ -757,6 +757,7 @@ static bool add_type(struct policydb *db, const char *type_name, bool attr)
     type = (struct type_datum *)kzalloc(sizeof(struct type_datum), GFP_KERNEL);
     if (!type) {
         pr_err("add_type: alloc type_datum failed.\n");
+        db->p_types.nprim--;
         return false;
     }
 
@@ -767,47 +768,62 @@ static bool add_type(struct policydb *db, const char *type_name, bool attr)
     char *key = kstrdup(type_name, GFP_KERNEL);
     if (!key) {
         pr_err("add_type: alloc key failed.\n");
+        kfree(type);
+        db->p_types.nprim--;
         return false;
     }
 
+#if !(LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0) ||                                                                 \
+      (defined(KSU_COMPAT_HAS_MODERN_POLICYDB) && !defined(KSU_COMPAT_TYPE_ATTR_MAP_ARRAY_NOT_FOUND)))
     if (symtab_insert(&db->p_types, key, type)) {
         pr_err("add_type: insert symtab failed.\n");
+        kfree(key);
+        kfree(type);
+        db->p_types.nprim--;
         return false;
     }
+#endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0) ||                                                                   \
     (defined(KSU_COMPAT_HAS_MODERN_POLICYDB) && !defined(KSU_COMPAT_TYPE_ATTR_MAP_ARRAY_NOT_FOUND))
+    // Grow the arrays before the type becomes visible in the symtab; each
+    // grown array replaces the old one at once because the realloc freed it
     struct ebitmap *new_type_attr_map_array =
         ksu_kvrealloc(db->type_attr_map_array, value * sizeof(struct ebitmap), (value - 1) * sizeof(struct ebitmap));
 
     if (!new_type_attr_map_array) {
         pr_err("add_type: alloc type_attr_map_array failed\n");
-        return false;
+        goto err_free;
     }
+    db->type_attr_map_array = new_type_attr_map_array;
 
     struct type_datum **new_type_val_to_struct = ksu_kvrealloc(
         db->type_val_to_struct, sizeof(*db->type_val_to_struct) * value, sizeof(*db->type_val_to_struct) * (value - 1));
 
     if (!new_type_val_to_struct) {
         pr_err("add_type: alloc type_val_to_struct failed\n");
-        return false;
+        goto err_free;
     }
+    db->type_val_to_struct = new_type_val_to_struct;
 
     char **new_val_to_name_types =
         ksu_kvrealloc(db->sym_val_to_name[SYM_TYPES], sizeof(char *) * value, sizeof(char *) * (value - 1));
     if (!new_val_to_name_types) {
         pr_err("add_type: alloc val_to_name failed\n");
-        return false;
+        goto err_free;
+    }
+    db->sym_val_to_name[SYM_TYPES] = new_val_to_name_types;
+
+    if (symtab_insert(&db->p_types, key, type)) {
+        pr_err("add_type: insert symtab failed.\n");
+        goto err_free;
     }
 
-    db->type_attr_map_array = new_type_attr_map_array;
     ebitmap_init(&db->type_attr_map_array[value - 1]);
     ebitmap_set_bit(&db->type_attr_map_array[value - 1], value - 1, 1);
 
-    db->type_val_to_struct = new_type_val_to_struct;
     db->type_val_to_struct[value - 1] = type;
 
-    db->sym_val_to_name[SYM_TYPES] = new_val_to_name_types;
     db->sym_val_to_name[SYM_TYPES][value - 1] = key;
 
     int i;
@@ -819,6 +835,13 @@ static bool add_type(struct policydb *db, const char *type_name, bool attr)
     susfs_add_sus_type(type_name, type->value);
 #endif // #ifdef CONFIG_KSU_SUSFS
     return true;
+
+err_free:
+    // The arrays may stay one slot larger than nprim, which is harmless
+    db->p_types.nprim--;
+    kfree(key);
+    kfree(type);
+    return false;
 
     // safe? because only huawei do this fucking things
 #elif defined(KSU_COMPAT_TYPE_ATTR_MAP_ARRAY_NOT_FOUND)
