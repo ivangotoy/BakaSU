@@ -354,7 +354,9 @@ static bool add_rule_raw(struct policydb *db, struct type_datum *src, struct typ
         }
 
 #ifdef CONFIG_KSU_SUSFS
-        susfs_add_sus_avd_allowed_by_type(src->value, tgt->value, cls->value, node->datum.u.data);
+        // Only an allow node holds allowed bits; audit nodes would record audit masks
+        if (effect == AVTAB_ALLOWED)
+            susfs_add_sus_avd_allowed_by_type(src->value, tgt->value, cls->value, node->datum.u.data);
 #endif // #ifdef CONFIG_KSU_SUSFS
 
         if (invert) {
