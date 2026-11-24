@@ -14,7 +14,9 @@ CI="$TREE/.forgejo/manager-ci.sh"
 W="$(mktemp -d)"
 trap 'rm -rf "$W"' EXIT
 REAL_GIT="$(command -v git)"
-REAL_PY="$(command -v python3)"
+# the interpreter itself, not a wrapper on PATH that may need the HOME this script replaces
+REAL_PY="$(python3 -I -c 'import sys; print(sys.executable)')"
+[ -x "$REAL_PY" ] || { echo "cannot find the python3 interpreter"; exit 1; }
 SERVER=https://forge.example.com
 REPOSITORY=owner/BakaSU
 TOKEN="$(printf 'fixture-token-%s' 41)"
@@ -106,13 +108,13 @@ mkapk() { python3 -I "$HERE/make-apk.py" "$@"; }
 apkcert() { python3 -I "$TREE/.forgejo/apk-cert.py" "$1" 2>/dev/null; }
 echo "--- apk-cert.py"
 mkapk "$W/c735.apk" 735 v2 > "$W/c735.want"
-check "apk-cert: size and sha256 of the first v2 certificate" '[ "$(apkcert "$W/c735.apk")" = "$(cat "$W/c735.want")" ]'
+check "apk-cert: size and sha256 of the first v2 certificate" '[ -s "$W/c735.want" ] && [ "$(apkcert "$W/c735.apk")" = "$(cat "$W/c735.want")" ]'
 mkapk "$W/c1025.apk" 1025 v2 > "$W/c1025.want"
-check "apk-cert: 1025-byte certificate is reported as 1025" '[ "$(apkcert "$W/c1025.apk")" = "$(cat "$W/c1025.want")" ]'
+check "apk-cert: 1025-byte certificate is reported as 1025" '[ -s "$W/c1025.want" ] && [ "$(apkcert "$W/c1025.apk")" = "$(cat "$W/c1025.want")" ]'
 mkapk "$W/none.apk" 735 none
-check "apk-cert: no signing block fails" '! apkcert "$W/none.apk" >/dev/null'
+check "apk-cert: no signing block fails" '[ -f "$W/none.apk" ] && ! apkcert "$W/none.apk" >/dev/null'
 mkapk "$W/v3.apk" 735 v3 > /dev/null
-check "apk-cert: v3-only block fails" '! apkcert "$W/v3.apk" >/dev/null'
+check "apk-cert: v3-only block fails" '[ -f "$W/v3.apk" ] && ! apkcert "$W/v3.apk" >/dev/null'
 
 # fixture repositories: upstream U0 <- U1 (tag v4.2.0-rc3 on U0); fork main B = U0 + fork files
 git init -q --bare "$W/upstream.git"; git init -q --bare "$W/origin.git"
