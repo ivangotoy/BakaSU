@@ -25,6 +25,8 @@ KSUD_TARGET=aarch64-linux-android
 ABI=arm64-v8a
 NDK_VERSION=29.0.14206865
 BUILD_UID=1000
+# no-reply e-mail domain of the forge (its API shows <login>@noreply.localhost for hidden addresses)
+NOREPLY_DOMAIN=noreply.localhost
 OUT="$WORK/.ci-out"
 
 log() { printf '==> %s\n' "$*" >&2; }
@@ -47,8 +49,9 @@ if [ "$MODE" = build-user ]; then
     rm -rf "$OUT"; mkdir -p "$OUT"
     printf '.ci-out/\n.ci-home/\n/target/\n/dist/\n' >> .git/info/exclude
     git checkout -q -B main "$BASE_SHA"
-    # a merge commit carries the identity of the commit being built
-    GIT_AUTHOR_NAME="$(git log -1 --format=%an)" GIT_AUTHOR_EMAIL="$(git log -1 --format=%ae)"
+    # the upstream merge carries the identity of whoever dispatched the release (build mode sets
+    # it); a direct build-user run without one gets a neutral identity, never one of a commit
+    GIT_AUTHOR_NAME="${MERGE_AUTHOR_NAME:-manager-ci}" GIT_AUTHOR_EMAIL="${MERGE_AUTHOR_EMAIL:-manager-ci@localhost}"
     export GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
 
     # upstream main and upstream's tags (versionName is `git describe --tags`; the clone has no
@@ -122,6 +125,10 @@ fi
 
 if [ "$MODE" = build ]; then
     : "${BASE_SHA:?}"
+    # forge login of the user who dispatched the workflow; the merge commit is theirs, with the
+    # forge's no-reply address for that login (no e-mail address is taken from anywhere)
+    [[ "${DISPATCH_ACTOR:-}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || die "DISPATCH_ACTOR is not set or not a forge login"
+    export MERGE_AUTHOR_NAME="$DISPATCH_ACTOR" MERGE_AUTHOR_EMAIL="$DISPATCH_ACTOR@$NOREPLY_DOMAIN"
     cd "$WORK"
     mkdir -p "$WORK/.ci-home"
     chown -R "$BUILD_UID:$BUILD_UID" "$WORK"
@@ -129,7 +136,7 @@ if [ "$MODE" = build ]; then
     # The build user gets exactly the variables below (the signing secrets by environment, never
     # argv: apksigner reads the passwords as env: references, .forgejo/repack-sign.py):
     # un-export everything else, and let env(1) drop what bash cannot.
-    (   keep=" PATH JAVA_HOME SIGN_KEYSTORE_B64 SIGN_KEY_ALIAS SIGN_STORE_PASSWORD SIGN_KEY_PASSWORD BASE_SHA GIT_HTTP_LOW_SPEED_LIMIT GIT_HTTP_LOW_SPEED_TIME "
+    (   keep=" PATH JAVA_HOME SIGN_KEYSTORE_B64 SIGN_KEY_ALIAS SIGN_STORE_PASSWORD SIGN_KEY_PASSWORD BASE_SHA MERGE_AUTHOR_NAME MERGE_AUTHOR_EMAIL GIT_HTTP_LOW_SPEED_LIMIT GIT_HTTP_LOW_SPEED_TIME "
         drop=()
         for v in $(compgen -e); do
             case "$keep" in *" $v "*) ;; *) export -n "${v?}" 2>/dev/null || drop+=(-u "$v") ;; esac

@@ -136,7 +136,8 @@ d=app/build/outputs/apk/release; mkdir -p "\$d"
 python3 -I "$HERE/make-apk.py" "\$d/BakaSU_v4.2.0-rc3_35271-arm64-v8a-release.apk" 735 v2 lib/arm64-v8a/libkernelsu.so >/dev/null
 python3 -I "$HERE/make-apk.py" "\$d/BakaSU_v4.2.0-rc3_35271-x86_64-release.apk" 735 v2 lib/x86_64/libkernelsu.so >/dev/null
 EOF
-    git add -A && git commit -q -m B && git push -q "$W/origin.git" HEAD:refs/heads/main ) || exit 1
+    git add -A && GIT_AUTHOR_NAME="Third Party" GIT_AUTHOR_EMAIL=third@example.org GIT_COMMITTER_NAME="Third Party" \
+        GIT_COMMITTER_EMAIL=third@example.org git commit -q -m B && git push -q "$W/origin.git" HEAD:refs/heads/main ) || exit 1
 B="$(git -C "$W/f" rev-parse HEAD)"; U0="$(git -C "$W/u" rev-parse HEAD~1)"; U1="$(git -C "$W/u" rev-parse HEAD)"
 cp -a "$W/origin.git" "$W/origin.pristine"
 fresh_origin() { rm -rf "$W/origin.git"; cp -a "$W/origin.pristine" "$W/origin.git"; }
@@ -146,10 +147,11 @@ git clone -q "$W/origin.git" "$W/b1"
 printf '#!/usr/bin/env bash\ncat /proc/$$/environ > "%s/logs/build-env"\n' "$W" > "$W/b1/.forgejo/manager-ci.sh"
 : > "$W/logs/argv"
 env "odd-name=1" CANARY_TOKEN="$(printf 'canary-%s' 7)" BASE_SHA="$B" SIGN_KEYSTORE_B64=a SIGN_KEY_ALIAS=b \
-    SIGN_STORE_PASSWORD="$STORE_PW" SIGN_KEY_PASSWORD="$KEY_PW" bash "$CI" build "$W/b1" > "$W/logs/b1" 2>&1
+    SIGN_STORE_PASSWORD="$STORE_PW" SIGN_KEY_PASSWORD="$KEY_PW" DISPATCH_ACTOR=dispatcher-1 \
+    bash "$CI" build "$W/b1" > "$W/logs/b1" 2>&1
 b1=$?
 names="$(tr '\0' '\n' < "$W/logs/build-env" 2>/dev/null | cut -d= -f1 | sort | tr '\n' ' ')"
-allowed=" ANDROID_HOME ANDROID_SDK_ROOT BASE_SHA GIT_HTTP_LOW_SPEED_LIMIT GIT_HTTP_LOW_SPEED_TIME GRADLE_USER_HOME HOME JAVA_HOME LANG OLDPWD PATH PWD SHLVL SIGN_KEYSTORE_B64 SIGN_KEY_ALIAS SIGN_KEY_PASSWORD SIGN_STORE_PASSWORD _ "
+allowed=" ANDROID_HOME ANDROID_SDK_ROOT BASE_SHA GIT_HTTP_LOW_SPEED_LIMIT GIT_HTTP_LOW_SPEED_TIME GRADLE_USER_HOME HOME JAVA_HOME LANG MERGE_AUTHOR_EMAIL MERGE_AUTHOR_NAME OLDPWD PATH PWD SHLVL SIGN_KEYSTORE_B64 SIGN_KEY_ALIAS SIGN_KEY_PASSWORD SIGN_STORE_PASSWORD _ "
 only_allowed() { local n; for n in $names; do case "$allowed" in *" $n "*) ;; *) echo "unexpected variable $n"; return 1 ;; esac; done; }
 check "build: exits 0" '[ "$b1" = 0 ]'
 check "build: only the allowed variables reach build-user (canary dropped)" 'only_allowed && [ -n "$names" ]'
@@ -157,6 +159,14 @@ all_present() { local n; for n in "$@"; do case " $names" in *" $n "*) ;; *) ret
 check "build: signing settings and BASE_SHA reach build-user" \
     'all_present SIGN_KEYSTORE_B64 SIGN_KEY_ALIAS SIGN_STORE_PASSWORD SIGN_KEY_PASSWORD BASE_SHA'
 check "build: non-identifier variable dropped" 'case "$names" in *odd-name*) false ;; esac'
+check "build: merge identity = the dispatching login and its no-reply address" \
+    'tr "\0" "\n" < "$W/logs/build-env" | grep -qx "MERGE_AUTHOR_NAME=dispatcher-1" \
+     && tr "\0" "\n" < "$W/logs/build-env" | grep -qx "MERGE_AUTHOR_EMAIL=dispatcher-1@noreply.localhost"'
+for a in "" "two words" "-x"; do
+    env BASE_SHA="$B" SIGN_KEYSTORE_B64=a SIGN_KEY_ALIAS=b SIGN_STORE_PASSWORD=c SIGN_KEY_PASSWORD=d DISPATCH_ACTOR="$a" bash "$CI" build "$W/b1" > "$W/logs/b1-actor" 2>&1
+    b1a=$?
+    check "build: dispatcher login '$a' refused" '[ "$b1a" != 0 ] && grep -q "DISPATCH_ACTOR is not set or not a forge login" "$W/logs/b1-actor"'
+done
 check "build: HOME is the workspace .ci-home" 'tr "\0" "\n" < "$W/logs/build-env" | grep -qx "HOME=$W/b1/.ci-home"'
 check "build: build-user runs as uid 1000, its processes are killed after" \
     'grep -q -- "--reuid=1000 --regid=1000 --clear-groups bash" "$W/logs/argv" && grep -q -- "--reuid=1000 --regid=1000 --clear-groups kill -9 -1" "$W/logs/argv"'
@@ -171,13 +181,15 @@ echo "--- build-user mode (upstream ahead: merge)"
 git clone -q "$W/origin.git" "$W/b2"
 git -C "$W/b2" tag v4.2.0-rc3-ci4
 : > "$W/logs/argv"
-buser "$W/b2" > "$W/logs/b2" 2>&1
+buser "$W/b2" MERGE_AUTHOR_NAME="Dispatcher Example" MERGE_AUTHOR_EMAIL=dispatcher@example.org > "$W/logs/b2" 2>&1
 b2=$?
 O="$W/b2/.ci-out"
 M2="$(sed -n 1p "$O/src" 2>/dev/null)"
 check "build-user: exits 0" '[ "$b2" = 0 ]'
 check "build-user: manager.apk written" '[ -f "$O/manager.apk" ]'
 check "build-user: src = merge of BASE and upstream" '[ "$(git -C "$W/b2" rev-parse "$M2^1" "$M2^2" 2>/dev/null | tr "\n" " ")" = "$B $U1 " ]'
+check "build-user: merge author and committer = the dispatcher, not the author of the built commit" \
+    '[ "$(git -C "$W/b2" log -1 --format="%an <%ae>|%cn <%ce>" "$M2" 2>/dev/null)" = "Dispatcher Example <dispatcher@example.org>|Dispatcher Example <dispatcher@example.org>" ]'
 check "build-user: src line 2 = upstream sha" '[ "$(sed -n 2p "$O/src" 2>/dev/null)" = "$U1" ]'
 check "build-user: merge.bundle holds the merge as main" \
     'git -C "$W/b2" bundle list-heads "$O/merge.bundle" 2>/dev/null | grep -qx "$M2 refs/heads/main"'
@@ -189,6 +201,13 @@ check "build-user: apksigner sign ran (stub checks the passwords)" 'grep -q "^ap
 check "build-user: signing passwords never in argv" '! grep -qF -e "$STORE_PW" -e "$KEY_PW" "$W/logs/argv"'
 check "build-user: signing secrets not in the Gradle environment" '[ -f "$W/logs/gradle-env" ] && ! grep -q "^SIGN_" "$W/logs/gradle-env"'
 check "build-user: signing secrets not in the cargo environment" '[ -f "$W/logs/cargo-env" ] && ! grep -q "^SIGN_" "$W/logs/cargo-env"'
+
+git clone -q "$W/origin.git" "$W/b4"
+buser "$W/b4" > "$W/logs/b4" 2>&1
+b4=$?
+M4="$(sed -n 1p "$W/b4/.ci-out/src" 2>/dev/null)"
+check "build-user without a dispatcher: neutral merge identity, never the built commit's" \
+    '[ "$b4" = 0 ] && [ "$(git -C "$W/b4" log -1 --format="%an <%ae>|%cn <%ce>" "$M4" 2>/dev/null)" = "manager-ci <manager-ci@localhost>|manager-ci <manager-ci@localhost>" ]'
 
 echo "--- build-user mode (upstream already merged; failures)"
 git clone -q "$W/origin.git" "$W/b3"
