@@ -621,7 +621,7 @@ static bool add_filename_trans(struct policydb *db, const char *s, const char *t
     key.tclass = cls->value;
     key.name = (char *)o;
 
-    struct filename_trans_datum *last = NULL;
+    struct filename_trans_datum *last = NULL, *old_owner = NULL;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0) || defined(KSU_COMPAT_HAS_HASHTAB_KEY_PARAMS)
     struct filename_trans_datum *trans = policydb_filenametr_search(db, &key);
@@ -630,9 +630,10 @@ static bool add_filename_trans(struct policydb *db, const char *s, const char *t
 #endif
     while (trans) {
         if (ebitmap_get_bit(&trans->stypes, src->value - 1)) {
-            // Duplicate, overwrite existing data and return
-            trans->otype = def->value;
-            return true;
+            if (trans->otype == def->value)
+                return true;
+            // The datum may be shared with other source types: move only src below
+            old_owner = trans;
         }
         if (trans->otype == def->value)
             break;
@@ -679,6 +680,10 @@ static bool add_filename_trans(struct policydb *db, const char *s, const char *t
         return false;
     if (ebitmap_set_bit(&trans->stypes, src->value - 1, 1))
         return false;
+    if (old_owner) {
+        ebitmap_set_bit(&old_owner->stypes, src->value - 1, 0);
+        return true;
+    }
     db->compat_filename_trans_count++;
     return true;
 #else // < 5.7.0, has no filename_trans_key, but struct filename_trans
