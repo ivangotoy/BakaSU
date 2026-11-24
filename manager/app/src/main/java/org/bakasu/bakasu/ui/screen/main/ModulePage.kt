@@ -987,7 +987,7 @@ private fun ModuleList(
 
             items(
                 items = uiState.moduleList,
-                key = { "module-$it.id" },
+                key = { "module-${it.dirId}" },
             ) { module ->
                 ModuleItem(
                     viewModel = viewModel,
