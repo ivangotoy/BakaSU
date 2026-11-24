@@ -253,9 +253,11 @@ int escape_with_root_profile(void)
     }
 
 #ifdef CONFIG_KSU_TRACEPOINT_HOOK
+    rcu_read_lock();
     for_each_thread (p, t) {
         ksu_set_task_tracepoint_flag(t);
     }
+    rcu_read_unlock();
 #endif
 
     setup_mount_ns(profile->namespaces);
