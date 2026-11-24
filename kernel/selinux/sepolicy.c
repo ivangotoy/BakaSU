@@ -684,6 +684,7 @@ static bool add_filename_trans(struct policydb *db, const char *s, const char *t
 #else // < 5.7.0, has no filename_trans_key, but struct filename_trans
 
     struct filename_trans key;
+    key.stype = src->value;
     key.ttype = tgt->value;
     key.tclass = cls->value;
     key.name = (char *)o;
@@ -699,15 +700,30 @@ static bool add_filename_trans(struct policydb *db, const char *s, const char *t
         struct filename_trans *new_key = (struct filename_trans *)kzalloc(sizeof(*new_key), GFP_KERNEL);
         if (!new_key) {
             pr_err("add_filename_trans: Failed to alloc new_key\n");
+            kfree(trans);
             return false;
         }
         *new_key = key;
         new_key->name = kstrdup(key.name, GFP_KERNEL);
+        if (!new_key->name) {
+            pr_err("add_filename_trans: Failed to dup name\n");
+            kfree(new_key);
+            kfree(trans);
+            return false;
+        }
         trans->otype = def->value;
-        hashtab_insert(db->filename_trans, new_key, trans);
+        if (hashtab_insert(db->filename_trans, new_key, trans)) {
+            pr_err("add_filename_trans: Failed to insert datum\n");
+            kfree(new_key->name);
+            kfree(new_key);
+            kfree(trans);
+            return false;
+        }
+    } else {
+        trans->otype = def->value;
     }
 
-    return ebitmap_set_bit(&db->filename_trans_ttypes, src->value - 1, 1) == 0;
+    return ebitmap_set_bit(&db->filename_trans_ttypes, key.ttype, 1) == 0;
 #endif
 }
 
