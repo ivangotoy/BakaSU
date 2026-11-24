@@ -48,7 +48,9 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.bakasu.bakasu.R
 import org.bakasu.bakasu.ui.component.settings.AppBackButton
 import org.bakasu.bakasu.ui.theme.CardConfig
@@ -79,6 +81,7 @@ fun FlashOutputScreen(
     val snackbarHost = LocalSnackbarHost.current
     val cardConfig: CardConfig = koinInject()
     val savedTemplate = stringResource(R.string.log_saved)
+    val saveFailed = stringResource(R.string.log_save_failed)
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(
@@ -96,8 +99,9 @@ fun FlashOutputScreen(
                 scope.launch {
                     val date = SimpleDateFormat("yyyy-MM-dd-HH-mm-ss", Locale.getDefault()).format(Date())
                     val file = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "${logFilePrefix}_$date.log")
-                    file.writeText(logContent)
-                    snackbarHost.showReplacingSnackbar(savedTemplate.format(file.absolutePath))
+                    // off the main thread; a failed write (e.g. no storage permission) must not crash the app
+                    val saved = withContext(Dispatchers.IO) { runCatching { file.writeText(logContent) }.isSuccess }
+                    snackbarHost.showReplacingSnackbar(if (saved) savedTemplate.format(file.absolutePath) else saveFailed)
                 }
             }, scrollBehavior)
         },
