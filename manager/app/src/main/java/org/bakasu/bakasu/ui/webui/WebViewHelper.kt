@@ -142,14 +142,6 @@ internal suspend fun prepareWebView(
 
                     BlobDownloadHandler.shouldInterceptRequest(request)?.let { return it }
 
-                    // a main-frame load that shouldOverrideUrlLoading does not see (e.g. a form POST)
-                    // must not take the bridges to another origin
-                    val onWebUi = url.scheme.equals("https", ignoreCase = true) &&
-                        url.host.equals(WEB_DOMAIN, ignoreCase = true)
-                    if (request.isForMainFrame && !onWebUi) {
-                        return WebResourceResponse("text/plain", "utf-8", 403, "Forbidden", emptyMap(), ByteArrayInputStream(ByteArray(0)))
-                    }
-
                     if (url.scheme.equals(KSU_SCHEME, ignoreCase = true) && url.host.equals(ICON_HOST, ignoreCase = true)) {
                         val packageName = url.path?.removePrefix("/")
                         if (!packageName.isNullOrEmpty()) {
