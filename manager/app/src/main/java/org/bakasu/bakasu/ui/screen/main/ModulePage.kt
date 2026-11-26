@@ -838,8 +838,9 @@ private fun ModuleList(
         } else {
             loadingDialog.withLoading { viewModel.loadUpdateChangelog(changelogUrl, module.updateJson) }
         }
-        val changelog = changelogResult.getOrElse {
-            showToast(context.getString(R.string.repo_document_error))
+        val changelog = changelogResult.getOrElse { error ->
+            Log.e("ModulePage", "Update changelog failed for ${module.id}: $changelogUrl", error)
+            showToast(context.getString(R.string.repo_document_error) + ": " + error.javaClass.simpleName + " " + error.message.orEmpty())
             return
         }
 
